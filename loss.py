@@ -91,10 +91,10 @@ def process_pred(y_pred, anchors, calc_loss=False):
     """
     grid_size = tf.shape(y_pred)[1]
     # reshape_pred: (batch_size, grid, grid, anchors, (x, y, w, h, obj, ...classes))
-    reshape_feat = tf.reshape(y_pred, [-1, grid_size, grid_size, cfg.num_bbox, cfg.num_classes + 5])
+    # reshape_feat = tf.reshape(y_pred, [-1, grid_size, grid_size, cfg.num_bbox, cfg.num_classes + 5])
 
     # tf.spilt的参数对应：2-(x,y) 2-(w,h) 1-置信度 classes=20-分类数目的得分
-    box_xy, box_wh, confidence, class_probs = tf.split(reshape_feat, (2, 2, 1, cfg.num_classes), axis=-1)
+    box_xy, box_wh, confidence, class_probs = tf.split(y_pred, (2, 2, 1, cfg.num_classes), axis=-1)
     # 举例：box_xy (13, 13, 3, 2) 3是指三个框，2是xy，其他三个输出类似
 
     box_xy = tf.sigmoid(box_xy)
@@ -114,160 +114,98 @@ def process_pred(y_pred, anchors, calc_loss=False):
     pred_box = tf.concat((box_xy, box_wh), axis=-1)  # original xywh for loss
 
     if calc_loss:
-        return reshape_feat, pred_box, grid
+        return pred_box, grid
+        # return reshape_feat, pred_box, grid
 
     return box_xy, box_wh, confidence, class_probs
 
 
-def yolo_losses(anchors, num_classes, ignore_thresh=0.5):
-    """
-    计算三种不同特征大小的总损失，使用闭包得得形式，是因为有两个参数要传递进去
-    yolo_single_loss是计算损失的，参数只能有ture和pred，顺序还不能变
-    所以参数只能由yolo_loss接受
-    :param anchors: 三个先验框（总共9个 三个大，三个中，三个小）
-    :param num_classes: 分类数量
-    :param ignore_thresh:
-    :return:
-    """
-    def yolo_single_loss(y_true, y_pred):
-        """
-        计算单个feature_mapd的loss，自定义的Loss，y_true和y_pred的参数顺序不能乱
-        :param y_pred: 网络预测值 shape(b, 13, 13, 75)
-        :param y_true: 实际位置值 shape(b, 13, 13, 3, 25)
-        :return: 单个feature的loss
-        """
-        # 1. 转换 y_pred -> bbox，预测置信度，各个分类的最后一层分数， 中心点坐标+宽高
-        # y_pred: (batch_size, grid, grid, anchors * (x, y, w, h, obj, ...cls))
-        pred_box, pred_obj, pred_class, pred_xywh, grid = process_pred_bbox(y_pred, anchors, num_classes)
-        pred_xy = pred_xywh[..., 0:2]
-        pred_wh = pred_xywh[..., 2:4]
+def compute_loss(anchors):
+    def yolo_loss(y_true, y_pred):
+        input_shape = cfg.input_shape
+        grid_shapes = tf.cast(tf.shape(y_pred), tf.float32)
 
-        # 2. 转换 y_true -> bbox, 置信度（真实分类的索引）, 各个类别的概率（应该是one_hot）
-        # y_true: (batch_size, grid, grid, anchors, (x1, y1, x2, y2, obj, cls))
-        true_box, true_obj, true_class = tf.split(y_true, (4, 1, num_classes), axis=-1)
+        pred_box, grid = process_pred(y_pred, anchors, calc_loss=True)
 
-        true_xy = (true_box[..., 0:2] + true_box[..., 2:4]) / 2
-        true_wh = true_box[..., 2:4] - true_box[..., 0:2]
+        true_xy = y_true[..., 0:2] * grid_shapes - grid
+        true_wh = tf.math.log(y_true[..., 2:4] / anchors * input_shape[::-1])
 
-        # 乘上一个比例，让小框的在total loss中有更大的占比
-        box_loss_scale = 2 - true_wh[..., 0] * true_wh[..., 1]
-
-        # 3. 翻转y_true的xy坐标（细节东西很多）
-        grid_size = tf.shape(y_true)[1]
-        grid_y = tf.tile(tf.reshape(tf.range(grid_size), [-1, 1, 1, 1]), [1, grid_size, 1, 1])
-        grid_x = tf.tile(tf.reshape(tf.range(grid_size), [1, -1, 1, 1]), [grid_size, 1, 1, 1])
-        grid = tf.concat([grid_x, grid_y], axis=-1)  # [gx, gy, 1, 2]
-
-        true_xy = true_xy * tf.cast(grid_size, tf.float32) - tf.cast(grid, tf.float32)
-        # 经过log之后，求比例再求ln
-        true_wh = tf.math.log(true_wh / anchors)
-
-        # condition， 后面两个参数x, y 相同维度，condition是bool型值，True/False
-        # True输出x, False输出y
-        # ----------------
-        # 因为true_wh经过log，防止它无穷小或者无穷大（+log基本只存在无穷小），如果太小就输出0矩阵，不然就输出true_wh
-        true_wh = tf.where(tf.math.is_inf(true_wh), tf.zeros_like(true_wh), true_wh)
-
-        # 4. calculate all masks
-        obj_mask = tf.squeeze(true_obj, -1)
-        # ignore false positive when iou is over threshold
-        best_iou = tf.map_fn(
-            lambda x: tf.reduce_max(broadcast_iou(x[0], tf.boolean_mask(
-                x[1], tf.cast(x[2], tf.bool))), axis=-1),
-            (pred_box, true_box, obj_mask),
-            tf.float32)
-        ignore_mask = tf.cast(best_iou < ignore_thresh, tf.float32)
-
-        # 5. 计算所有损失
-        xy_loss = obj_mask * box_loss_scale * tf.reduce_sum(tf.square(true_xy - pred_xy), axis=-1)
-        wh_loss = obj_mask * box_loss_scale * tf.reduce_sum(tf.square(true_wh - pred_wh), axis=-1)
-        obj_loss = keras.losses.binary_crossentropy(true_obj, pred_obj)
-        obj_loss = obj_mask * obj_loss + (1 - obj_mask) * ignore_mask * obj_loss
-        class_loss = obj_mask * keras.losses.binary_crossentropy(true_class, pred_class, from_logits=True)
-
-        # 6. sum over (batch, gridx, gridy, anchors) => (batch, 1)
-        xy_loss = tf.reduce_sum(xy_loss, axis=(1, 2, 3))
-        wh_loss = tf.reduce_sum(wh_loss, axis=(1, 2, 3))
-        obj_loss = tf.reduce_sum(obj_loss, axis=(1, 2, 3))
-        class_loss = tf.reduce_sum(class_loss, axis=(1, 2, 3))
-
-        # 6. sum over (batch, gridx, gridy, anchors) => (batch, 1)
-        return xy_loss + wh_loss + obj_loss + class_loss
-    return yolo_single_loss
+        print(true_xy)
+        exit(0)
+        pass
+    return yolo_loss
 
 
-def yolo_loss(args):
-    y_true, y_pred = args[0], args[1]
-
-    input_shape = cfg.input_shape
-    grid_shapes = [tf.cast(tf.shape(y_pred[i])[1:3], tf.float32) for i in range(cfg.num_bbox)]
-    loss = 0
-
-    for i in range(cfg.num_bbox):
-        # 1. 转换 y_pred -> bbox，预测置信度，各个分类的最后一层分数， 中心点坐标+宽高
-        # y_pred: (batch_size, grid, grid, anchors * (x, y, w, h, obj, ...cls))
-        mask_index = cfg.anchor_masks[i]
-        pred_box, pred_xywh, grid = process_pred(y_pred[i], cfg.anchors[mask_index], calc_loss=True)
-
-        # 获取true_xy, true_wh
-        true_xy = y_true[i][..., 0:2] * grid_shapes[i] - grid
-        true_wh = tf.math.log(y_true[i][..., 2:4] / cfg.anchors[mask_index] * input_shape[::-1])
-
-        # 获取置信度 和 分类
-        object_mask = y_true[i][..., 4:5]
-        true_class = y_true[i][..., 5:]
-
-        # 将无效区域设为0
-        true_wh = tf.where(tf.math.is_inf(object_mask), tf.zeros_like(true_wh), true_wh)
-        # 乘上一个比例，让小框的在total loss中有更大的占比，这个系数是个超参数，如果小物体太多，可以适当调大
-        box_loss_scale = 2 - true_wh[..., 0] * true_wh[..., 1]
-
-        # 找到负样本群组，第一步是创建一个数组，[]
-        ignore_mask = tf.TensorArray(dtype=tf.float32, size=1, dynamic_size=True)
-        object_mask_bool = tf.cast(object_mask, tf.bool)
-
-        # 对每一张图片计算ignore_mask
-        def loop_body(b, ignore_mask):
-            # object_mask_bool中，为True的值，y_true[l][b, ..., 0:4]才有效
-            # 最后计算除true_box的shape[box_num, 4]
-            true_box = tf.boolean_mask(y_true[i][b, ..., 0:4], object_mask_bool[b, ..., 0])
-            # 要记得process_true_bbox中是y_true存储的是 变成true xywh缩小比例后的结果，所以要一起计算iou的也是pred xywh
-            iou = box_iou(pred_xywh[b], true_box)
-
-            # 计算每个true_box对应的预测的iou最大的box
-            best_iou = tf.reduce_max(iou, axis=-1)
-
-            # 如果一张图片的最大iou 都小于阈值 认为这张图片没有目标
-            # 则被认为是这幅图的负样本
-            ignore_mask = ignore_mask.write(b, tf.cast(best_iou < cfg.ignore_thresh, tf.float32))
-            return b + 1, ignore_mask
-
-        batch_size = tf.shape(y_pred[0])[0]
-
-        # while_loop创建一个tensorflow的循环体，args:1、循环条件（b小于batch_size） 2、循环体 3、传入初始参数
-        # lambda b,*args: b<m：是条件函数  b,*args是形参，b<bs是返回的结果
-        _, ignore_mask = tf.while_loop(lambda b, ignore_mask: b < batch_size, loop_body, [0, ignore_mask])
-        # 将每幅图的内容压缩，进行处理
-        ignore_mask = ignore_mask.stack()
-        ignore_mask = tf.expand_dims(ignore_mask, -1)  # 扩展维度用来后续计算loss (b,13,13,3,1,1)
-        print(object_mask)
-        print(box_loss_scale)
-
-        xy_loss = object_mask * box_loss_scale * tf.nn.sigmoid_cross_entropy_with_logits(labels=true_xy, logits=pred_box[..., 0:2])
-        wh_loss = object_mask * box_loss_scale * 0.5 * tf.square(true_wh - pred_box[..., 2:4])
-        object_conf = tf.nn.sigmoid_cross_entropy_with_logits(labels=object_mask, logits=pred_box[..., 4:5])
-        confidence_loss = object_mask * object_conf + (1 - object_mask) * object_conf * ignore_mask
-        # 预测类别损失
-        class_loss = object_mask * tf.nn.sigmoid_cross_entropy_with_logits(labels=true_class, logits=pred_box[..., 5:])
-
-        # 各个损失求平均
-        xy_loss = tf.reduce_sum(xy_loss) / tf.cast(batch_size, tf.float32)
-        wh_loss = tf.reduce_sum(wh_loss) / tf.cast(batch_size, tf.float32)
-        confidence_loss = tf.reduce_sum(confidence_loss) / tf.cast(batch_size, tf.float32)
-        class_loss = tf.reduce_sum(class_loss) / tf.cast(batch_size, tf.float32)
-
-        loss += xy_loss + wh_loss + confidence_loss + class_loss
-    return loss
+# def yolo_loss(args):
+#     y_true, y_pred = args[0], args[1]
+#
+#     input_shape = cfg.input_shape
+#     grid_shapes = [tf.cast(tf.shape(y_pred[i])[1:3], tf.float32) for i in range(cfg.num_bbox)]
+#     loss = 0
+#
+#     for i in range(cfg.num_bbox):
+#         # 1. 转换 y_pred -> bbox，预测置信度，各个分类的最后一层分数， 中心点坐标+宽高
+#         # y_pred: (batch_size, grid, grid, anchors * (x, y, w, h, obj, ...cls))
+#         mask_index = cfg.anchor_masks[i]
+#         pred_box, pred_xywh, grid = process_pred(y_pred[i], cfg.anchors[mask_index], calc_loss=True)
+#
+#         # 获取true_xy, true_wh
+#         true_xy = y_true[i][..., 0:2] * grid_shapes[i] - grid
+#         true_wh = tf.math.log(y_true[i][..., 2:4] / cfg.anchors[mask_index] * input_shape[::-1])
+#
+#         # 获取置信度 和 分类
+#         object_mask = y_true[i][..., 4:5]
+#         true_class = y_true[i][..., 5:]
+#
+#         # 将无效区域设为0
+#         true_wh = tf.where(tf.math.is_inf(object_mask), tf.zeros_like(true_wh), true_wh)
+#         # 乘上一个比例，让小框的在total loss中有更大的占比，这个系数是个超参数，如果小物体太多，可以适当调大
+#         box_loss_scale = 2 - true_wh[..., 0] * true_wh[..., 1]
+#
+#         # 找到负样本群组，第一步是创建一个数组，[]
+#         ignore_mask = tf.TensorArray(dtype=tf.float32, size=1, dynamic_size=True)
+#         object_mask_bool = tf.cast(object_mask, tf.bool)
+#
+#         # 对每一张图片计算ignore_mask
+#         def loop_body(b, ignore_mask):
+#             # object_mask_bool中，为True的值，y_true[l][b, ..., 0:4]才有效
+#             # 最后计算除true_box的shape[box_num, 4]
+#             true_box = tf.boolean_mask(y_true[i][b, ..., 0:4], object_mask_bool[b, ..., 0])
+#             # 要记得process_true_bbox中是y_true存储的是 变成true xywh缩小比例后的结果，所以要一起计算iou的也是pred xywh
+#             iou = box_iou(pred_xywh[b], true_box)
+#
+#             # 计算每个true_box对应的预测的iou最大的box
+#             best_iou = tf.reduce_max(iou, axis=-1)
+#
+#             # 如果一张图片的最大iou 都小于阈值 认为这张图片没有目标
+#             # 则被认为是这幅图的负样本
+#             ignore_mask = ignore_mask.write(b, tf.cast(best_iou < cfg.ignore_thresh, tf.float32))
+#             return b + 1, ignore_mask
+#
+#         batch_size = tf.shape(y_pred[0])[0]
+#
+#         # while_loop创建一个tensorflow的循环体，args:1、循环条件（b小于batch_size） 2、循环体 3、传入初始参数
+#         # lambda b,*args: b<m：是条件函数  b,*args是形参，b<bs是返回的结果
+#         _, ignore_mask = tf.while_loop(lambda b, ignore_mask: b < batch_size, loop_body, [0, ignore_mask])
+#         # 将每幅图的内容压缩，进行处理
+#         ignore_mask = ignore_mask.stack()
+#         ignore_mask = tf.expand_dims(ignore_mask, -1)  # 扩展维度用来后续计算loss (b,13,13,3,1,1)
+#
+#         xy_loss = object_mask * box_loss_scale * tf.nn.sigmoid_cross_entropy_with_logits(labels=true_xy, logits=pred_box[..., 0:2])
+#         wh_loss = object_mask * box_loss_scale * 0.5 * tf.square(true_wh - pred_box[..., 2:4])
+#         object_conf = tf.nn.sigmoid_cross_entropy_with_logits(labels=object_mask, logits=pred_box[..., 4:5])
+#         confidence_loss = object_mask * object_conf + (1 - object_mask) * object_conf * ignore_mask
+#         # 预测类别损失
+#         class_loss = object_mask * tf.nn.sigmoid_cross_entropy_with_logits(labels=true_class, logits=pred_box[..., 5:])
+#
+#         # 各个损失求平均
+#         xy_loss = tf.reduce_sum(xy_loss) / tf.cast(batch_size, tf.float32)
+#         wh_loss = tf.reduce_sum(wh_loss) / tf.cast(batch_size, tf.float32)
+#         confidence_loss = tf.reduce_sum(confidence_loss) / tf.cast(batch_size, tf.float32)
+#         class_loss = tf.reduce_sum(class_loss) / tf.cast(batch_size, tf.float32)
+#
+#         loss += xy_loss + wh_loss + confidence_loss + class_loss
+#     return loss
 
 
 if __name__ == '__main__':

@@ -7,9 +7,9 @@
 
 import tensorflow as tf
 import config.config as cfg
-from dataset import ReadYolo3Data
+from dataReader import ReadYolo3Data
 from model.model import yolo_body
-from loss import yolo_loss
+from loss import compute_loss
 
 from tensorflow.keras.layers import Input, Lambda
 from tensorflow.keras.optimizers import Adam
@@ -23,20 +23,18 @@ from yolov3 import YoloV3
 
 
 def build_model():
-    yolo_model = yolo_body()
+    model = yolo_body()
     # model = YoloV3(416, training=True, classes=cfg.num_classes)
-    h, w = cfg.input_shape
-    y_true = [Input(shape=(h // [32, 16, 8][i], w // [32, 16, 8][i], cfg.num_bbox, cfg.num_classes + 5)) for i in range(cfg.num_bbox)]
 
-    loss_input = [y_true, yolo_model.output]
-    model_loss = Lambda(yolo_loss,
-                        output_shape=(1,),
-                        name='yolo_loss')(loss_input)
+    loss = [compute_loss(cfg.anchors[mask]) for mask in cfg.anchor_masks]
+
+    # loss_input = [y_true, yolo_model.output]
+    # model_loss = Lambda(yolo_loss,
+    #                     output_shape=(1,),
+    #                     name='yolo_loss')(loss_input)
 
     # loss = [compute_loss(cfg.anchors[mask], num_classes=cfg.num_classes) for mask in cfg.anchor_masks]
-    # model.compile(optimizer=Adam(lr=1e-3), loss=yolo_loss)
-
-    model = Model(loss_input, model_loss)
+    model.compile(optimizer=Adam(lr=1e-3), loss=loss)
 
     return model
 

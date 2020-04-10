@@ -78,9 +78,9 @@ def yolo_body():
 
     # 这里output1、output2、output3的shape分别是52x52, 26x26, 13x13
     # 然后reshape为 从(b, size, size, 75) -> (b, size, size, 3, 25)
-    # output3 = Lambda(lambda x: yolo_feat_reshape(x), name='reshape_3')(output3)
-    # output2 = Lambda(lambda x: yolo_feat_reshape(x), name='reshape_2')(output2)
-    # output1 = Lambda(lambda x: yolo_feat_reshape(x), name='reshape_1')(output1)
+    output3 = Lambda(lambda x: yolo_feat_reshape(x), name='reshape_3')(output3)
+    output2 = Lambda(lambda x: yolo_feat_reshape(x), name='reshape_2')(output2)
+    output1 = Lambda(lambda x: yolo_feat_reshape(x), name='reshape_1')(output1)
 
     model = Model(input_image, [output3, output2, output1])
     # model.summary()
