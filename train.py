@@ -115,6 +115,10 @@ def main():
         else:
             patience_cnt += 1
 
+        if patience_cnt >= patience:
+            tf.print("No improvement for {} times, early stopping optimization".format(patience))
+            break
+
 
 if __name__ == '__main__':
     main()
