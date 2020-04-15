@@ -108,10 +108,15 @@ def process_pred(y_pred, anchors, calc_loss=False):
     grid = tf.concat([grid_x, grid_y], axis=-1)  # [gx, gy, 1, 2]
     grid = tf.cast(grid, tf.float32)
 
+    # 先将 cfg.num_bbox（3）个 数量的先验框形状 转换成和box_wh一样，不然计算不了
+    anchors_tensor = tf.reshape(tf.constant(anchors), [1, 1, 1, cfg.num_bbox, 2])
+
+    # 把xy, wh归一化成比例
     box_xy = (box_xy + grid) / tf.cast(grid_size, tf.float32)
-    box_wh = tf.exp(box_wh) * anchors
+    box_wh = tf.exp(box_wh) * anchors_tensor / cfg.input_shape[::-1]
+
     # 把xy,wh 合并成pred_box在最后一个维度上（axis=-1）
-    pred_box = tf.concat((box_xy, box_wh), axis=-1)  # original xywh for loss
+    pred_box = tf.concat([box_xy, box_wh], axis=-1)  # original xywh for loss
 
     if calc_loss:
         return pred_box, grid
@@ -120,25 +125,76 @@ def process_pred(y_pred, anchors, calc_loss=False):
     return box_xy, box_wh, confidence, class_probs
 
 
-def compute_loss(anchors):
-    def yolo_loss(y_true, y_pred):
+def YoloLoss(anchors):
+    def compute_loss(y_true, y_pred):
         input_shape = cfg.input_shape
-        grid_shapes = tf.cast(tf.shape(y_pred), tf.float32)
+        grid_shapes = tf.cast(tf.shape(y_pred)[1:3], tf.float32)
 
+        # 1. 转换 y_pred -> bbox，预测置信度，各个分类的最后一层分数， 中心点坐标+宽高
+        # y_pred: (batch_size, grid, grid, anchors * (x, y, w, h, obj, ...cls))
         pred_box, grid = process_pred(y_pred, anchors, calc_loss=True)
+        pred_xy = y_pred[..., 0:2]
+        pred_wh = y_pred[..., 2:4]
+        pred_conf = y_pred[..., 4:5]
+        pred_class = y_pred[..., 5:]
 
         true_xy = y_true[..., 0:2] * grid_shapes - grid
         true_wh = tf.math.log(y_true[..., 2:4] / anchors * input_shape[::-1])
+        object_mask = y_true[..., 4:5]
+        true_class = y_true[..., 5:]
 
-        print(true_xy)
-        exit(0)
-        pass
-    return yolo_loss
+        # 将无效区域设为0
+        true_wh = tf.where(tf.math.is_inf(true_wh), tf.zeros_like(true_wh), true_wh)
+        # 乘上一个比例，让小框的在total loss中有更大的占比，这个系数是个超参数，如果小物体太多，可以适当调大
+        box_loss_scale = 2 - y_true[..., 2:3] * y_true[..., 3:4]
 
+        # 找到负样本群组，第一步是创建一个数组，[]
+        ignore_mask = tf.TensorArray(dtype=tf.float32, size=1, dynamic_size=True)
+        object_mask_bool = tf.cast(object_mask, tf.bool)
+
+        # 对每一张图片计算ignore_mask
+        def loop_body(b, ignore_mask):
+            # object_mask_bool中，为True的值，y_true[l][b, ..., 0:4]才有效
+            # 最后计算除true_box的shape[box_num, 4]
+            true_box = tf.boolean_mask(y_true[b, ..., 0:4], object_mask_bool[b, ..., 0])
+            # 计算预测框 和 真实框（归一化后的xywh在图中的比例）的交并比
+            iou = box_iou(pred_box[b], true_box)
+            # 计算每个true_box对应的预测的iou最大的box
+            best_iou = tf.reduce_max(iou, axis=-1)
+            # 如果一张图片的最大iou 都小于阈值 认为这张图片没有目标
+            # 则被认为是这幅图的负样本
+            ignore_mask = ignore_mask.write(b, tf.cast(best_iou < cfg.ignore_thresh, tf.float32))
+            return b + 1, ignore_mask
+
+        batch_size = tf.shape(y_pred)[0]
+
+        # while_loop创建一个tensorflow的循环体，args:1、循环条件（b小于batch_size） 2、循环体 3、传入初始参数
+        # lambda b,*args: b<m：是条件函数  b,*args是形参，b<bs是返回的结果
+        _, ignore_mask = tf.while_loop(lambda b, ignore_mask: b < batch_size, loop_body, [0, ignore_mask])
+
+        # 将每幅图的内容压缩，进行处理
+        ignore_mask = ignore_mask.stack()
+        ignore_mask = tf.expand_dims(ignore_mask, -1)  # 扩展维度用来后续计算loss (b,13,13,3,1,1)
+
+        xy_loss = object_mask * box_loss_scale * tf.square(true_xy, pred_xy)
+        wh_loss = object_mask * box_loss_scale * 0.5 * tf.square(true_wh - pred_wh)
+        object_conf = tf.nn.sigmoid_cross_entropy_with_logits(object_mask, pred_conf)
+        confidence_loss = object_mask * object_conf + (1 - object_mask) * object_conf * ignore_mask
+        # 预测类别损失
+        class_loss = object_mask * tf.nn.sigmoid_cross_entropy_with_logits(true_class, pred_class)
+
+        # 各个损失求平均
+        xy_loss = tf.reduce_sum(xy_loss) / tf.cast(batch_size, tf.float32)
+        wh_loss = tf.reduce_sum(wh_loss) / tf.cast(batch_size, tf.float32)
+        confidence_loss = tf.reduce_sum(confidence_loss) / tf.cast(batch_size, tf.float32)
+        class_loss = tf.reduce_sum(class_loss) / tf.cast(batch_size, tf.float32)
+
+        return xy_loss + wh_loss + confidence_loss + class_loss
+    return compute_loss
 
 # def yolo_loss(args):
-#     y_true, y_pred = args[0], args[1]
-#
+#     y_true = args[:cfg.num_bbox]
+#     y_pred = args[cfg.num_bbox:]
 #     input_shape = cfg.input_shape
 #     grid_shapes = [tf.cast(tf.shape(y_pred[i])[1:3], tf.float32) for i in range(cfg.num_bbox)]
 #     loss = 0
@@ -147,20 +203,22 @@ def compute_loss(anchors):
 #         # 1. 转换 y_pred -> bbox，预测置信度，各个分类的最后一层分数， 中心点坐标+宽高
 #         # y_pred: (batch_size, grid, grid, anchors * (x, y, w, h, obj, ...cls))
 #         mask_index = cfg.anchor_masks[i]
-#         pred_box, pred_xywh, grid = process_pred(y_pred[i], cfg.anchors[mask_index], calc_loss=True)
+#         pred_box, grid = process_pred(y_pred[i], cfg.anchors[mask_index], calc_loss=True)
+#         pred_xy = y_pred[i][..., 0:2]
+#         pred_wh = y_pred[i][..., 2:4]
+#         pred_conf = y_pred[i][..., 4:5]
+#         pred_class = y_pred[i][..., 5:]
 #
-#         # 获取true_xy, true_wh
+#         # 获取true_xy, true_wh, 获取置信度 和 分类
 #         true_xy = y_true[i][..., 0:2] * grid_shapes[i] - grid
 #         true_wh = tf.math.log(y_true[i][..., 2:4] / cfg.anchors[mask_index] * input_shape[::-1])
-#
-#         # 获取置信度 和 分类
 #         object_mask = y_true[i][..., 4:5]
 #         true_class = y_true[i][..., 5:]
 #
 #         # 将无效区域设为0
-#         true_wh = tf.where(tf.math.is_inf(object_mask), tf.zeros_like(true_wh), true_wh)
+#         true_wh = tf.where(tf.math.is_inf(true_wh), tf.zeros_like(true_wh), true_wh)
 #         # 乘上一个比例，让小框的在total loss中有更大的占比，这个系数是个超参数，如果小物体太多，可以适当调大
-#         box_loss_scale = 2 - true_wh[..., 0] * true_wh[..., 1]
+#         box_loss_scale = 2 - y_true[i][..., 2:3] * y_true[i][..., 3:4]
 #
 #         # 找到负样本群组，第一步是创建一个数组，[]
 #         ignore_mask = tf.TensorArray(dtype=tf.float32, size=1, dynamic_size=True)
@@ -171,12 +229,10 @@ def compute_loss(anchors):
 #             # object_mask_bool中，为True的值，y_true[l][b, ..., 0:4]才有效
 #             # 最后计算除true_box的shape[box_num, 4]
 #             true_box = tf.boolean_mask(y_true[i][b, ..., 0:4], object_mask_bool[b, ..., 0])
-#             # 要记得process_true_bbox中是y_true存储的是 变成true xywh缩小比例后的结果，所以要一起计算iou的也是pred xywh
-#             iou = box_iou(pred_xywh[b], true_box)
-#
+#             # 计算预测框 和 真实框（归一化后的xywh在图中的比例）的交并比
+#             iou = box_iou(pred_box[b], true_box)
 #             # 计算每个true_box对应的预测的iou最大的box
 #             best_iou = tf.reduce_max(iou, axis=-1)
-#
 #             # 如果一张图片的最大iou 都小于阈值 认为这张图片没有目标
 #             # 则被认为是这幅图的负样本
 #             ignore_mask = ignore_mask.write(b, tf.cast(best_iou < cfg.ignore_thresh, tf.float32))
@@ -187,16 +243,17 @@ def compute_loss(anchors):
 #         # while_loop创建一个tensorflow的循环体，args:1、循环条件（b小于batch_size） 2、循环体 3、传入初始参数
 #         # lambda b,*args: b<m：是条件函数  b,*args是形参，b<bs是返回的结果
 #         _, ignore_mask = tf.while_loop(lambda b, ignore_mask: b < batch_size, loop_body, [0, ignore_mask])
+#
 #         # 将每幅图的内容压缩，进行处理
 #         ignore_mask = ignore_mask.stack()
 #         ignore_mask = tf.expand_dims(ignore_mask, -1)  # 扩展维度用来后续计算loss (b,13,13,3,1,1)
 #
-#         xy_loss = object_mask * box_loss_scale * tf.nn.sigmoid_cross_entropy_with_logits(labels=true_xy, logits=pred_box[..., 0:2])
-#         wh_loss = object_mask * box_loss_scale * 0.5 * tf.square(true_wh - pred_box[..., 2:4])
-#         object_conf = tf.nn.sigmoid_cross_entropy_with_logits(labels=object_mask, logits=pred_box[..., 4:5])
+#         xy_loss = object_mask * box_loss_scale * tf.nn.sigmoid_cross_entropy_with_logits(labels=true_xy, logits=pred_xy)
+#         wh_loss = object_mask * box_loss_scale * 0.5 * tf.square(true_wh - pred_wh)
+#         object_conf = tf.nn.sigmoid_cross_entropy_with_logits(labels=object_mask, logits=pred_conf)
 #         confidence_loss = object_mask * object_conf + (1 - object_mask) * object_conf * ignore_mask
 #         # 预测类别损失
-#         class_loss = object_mask * tf.nn.sigmoid_cross_entropy_with_logits(labels=true_class, logits=pred_box[..., 5:])
+#         class_loss = object_mask * tf.nn.sigmoid_cross_entropy_with_logits(labels=true_class, logits=pred_class)
 #
 #         # 各个损失求平均
 #         xy_loss = tf.reduce_sum(xy_loss) / tf.cast(batch_size, tf.float32)

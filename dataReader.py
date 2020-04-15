@@ -46,10 +46,10 @@ class ReadYolo3Data:
         image, bbox = tf.py_function(self.change_image_bbox, [annotation_line], [tf.float32, tf.int32])
         # py_function没有解析List的返回值，所以要拆包 再合起来传出去
         y_true_13, y_true_26, y_true_52 = tf.py_function(self.process_true_bbox, [bbox], [tf.float32, tf.float32, tf.float32])
-        # box_data = y_true_13, y_true_26, y_true_52
+        box_data = y_true_13, y_true_26, y_true_52
 
         # 如果py_function的输出有个[..., ...]那么结果也会是列表，一般单个使用的时候，可以不用加[]
-        return image, y_true_13, y_true_26, y_true_52
+        return image, box_data
 
     def change_image_bbox(self, annotation_line):
         """
@@ -185,20 +185,22 @@ class ReadYolo3Data:
 
         return y_true
 
-    def make_datasets(self, annotation):
+    def make_datasets(self, annotation, mode="train"):
         # 这是GPU读取方式
         # load train dataset
         dataset = tf.data.Dataset.from_tensor_slices(annotation)
-        # 打乱数据，这里的shuffle的值越接近整个数据集的大小，越贴近概率分布
-        # 但是电脑往往没有这么大的内存，所以适量就好
-        dataset = dataset.shuffle(buffer_size=len(annotation))
         # map的作用就是根据定义的 函数，对整个数据集都进行这样的操作
         # 而不用自己写一个for循环，如：可以自己定义一个归一化操作，然后用.map方法都归一化
         dataset = dataset.map(self.parse, num_parallel_calls=tf.data.experimental.AUTOTUNE)
-        dataset = dataset.repeat()
-        # prefetch解耦了 数据产生的时间 和 数据消耗的时间
-        # prefetch官方的说法是可以在gpu训练模型的同时提前预处理下一批数据
-        dataset = dataset.batch(self.batch_size).prefetch(tf.data.experimental.AUTOTUNE)
+        if mode == "train":
+            # 打乱数据，这里的shuffle的值越接近整个数据集的大小，越贴近概率分布
+            # 但是电脑往往没有这么大的内存，所以适量就好
+            dataset = dataset.repeat().shuffle(buffer_size=len(annotation)).batch(self.batch_size)
+            # prefetch解耦了 数据产生的时间 和 数据消耗的时间
+            # prefetch官方的说法是可以在gpu训练模型的同时提前预处理下一批数据
+            dataset = dataset.prefetch(self.batch_size)
+        else:
+            dataset = dataset.repeat().batch(self.batch_size).prefetch(self.batch_size)
 
         return dataset
 
