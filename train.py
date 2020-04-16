@@ -3,7 +3,7 @@
 # @Author: Runist
 # @Time : 2020/4/7 12:37
 # @Software: PyCharm
-# @Brief:
+# @Brief: 训练脚本
 
 import tensorflow as tf
 import config.config as cfg
@@ -27,7 +27,7 @@ def main():
             tf.config.experimental.set_memory_growth(gpu, True)
 
     # 读取数据
-    reader = ReadYolo3Data(cfg.annotation_path)
+    reader = ReadYolo3Data(cfg.annotation_path, cfg.input_shape, cfg.batch_size)
     train, valid = reader.read_data_and_split_data()
     train_datasets = reader.make_datasets(train)
     valid_datasets = reader.make_datasets(valid)

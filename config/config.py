@@ -3,7 +3,7 @@
 # @Author: Runist
 # @Time : 2020/4/3 10:59
 # @Software: PyCharm
-# @Brief:
+# @Brief: 配置文件
 import numpy as np
 import os
 
@@ -30,14 +30,14 @@ weights_path = 'yolo_weights.h5'
 
 # 训练集和测试集的比例
 valid_rate = 0.1
-batch_size = 4
+batch_size = 2
 
 # 相关信息
 input_shape = (416, 416)
 num_bbox = 3
 
 # 训练信息
-epochs = 10
+epochs = 50
 learn_rating = 1e-3
 
 # 获得分类名
@@ -46,8 +46,11 @@ class_names = get_classes(classes_path)
 # 类别总数
 num_classes = len(class_names)
 
-# 置信度忽略阈值
+# iou忽略阈值
 ignore_thresh = 0.5
+iou_threshold = 0.5
+# 分数的阈值（只留下高过这个阈值的box）
+score_threshold = 0.6
 
 # 先验框信息
 anchors = np.array([(10, 13), (16, 30), (33, 23),

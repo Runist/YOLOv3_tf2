@@ -15,10 +15,10 @@ class ReadYolo3Data:
     tf.data.Dataset高速读取数据，提高GPU利用率
     """
 
-    def __init__(self, data_path, max_boxes=20):
+    def __init__(self, data_path, input_shape, batch_size, max_boxes=20):
         self.data_path = data_path
-        self.input_shape = cfg.input_shape
-        self.batch_size = cfg.batch_size
+        self.input_shape = input_shape
+        self.batch_size = batch_size
         self.max_boxes = max_boxes
 
     def read_data_and_split_data(self):
@@ -195,7 +195,7 @@ class ReadYolo3Data:
         if mode == "train":
             # 打乱数据，这里的shuffle的值越接近整个数据集的大小，越贴近概率分布
             # 但是电脑往往没有这么大的内存，所以适量就好
-            dataset = dataset.repeat().shuffle(buffer_size=len(annotation)).batch(self.batch_size)
+            dataset = dataset.repeat().shuffle(buffer_size=10).batch(self.batch_size)
             # prefetch解耦了 数据产生的时间 和 数据消耗的时间
             # prefetch官方的说法是可以在gpu训练模型的同时提前预处理下一批数据
             dataset = dataset.prefetch(self.batch_size)
@@ -206,7 +206,7 @@ class ReadYolo3Data:
 
 
 if __name__ == '__main__':
-    reader = ReadYolo3Data(cfg.annotation_path)
+    reader = ReadYolo3Data(cfg.annotation_path, cfg.input_shape, cfg.batch_size)
     train, valid = reader.read_data_and_split_data()
     train_datasets = reader.make_datasets(train)
 
