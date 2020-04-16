@@ -10,6 +10,7 @@
 - [x] EarlyStopping, Save best model
 - [x] GPU加速
 - [ ] 迁移学习
+- [ ] 数据增强
 
 ### 一些问题和可能会出现的Bug
 
