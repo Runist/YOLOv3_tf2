@@ -5,25 +5,11 @@
 # @Software: PyCharm
 # @Brief: 配置文件
 import numpy as np
-import os
-
-
-def get_classes(path):
-    """
-    加载 分类信息
-    :param path: 文本路径
-    :return: 分类数据
-    """
-    with open(path) as f:
-        class_names = f.readlines()
-    class_names = [c.strip() for c in class_names]
-    return class_names
-
 
 # 标签的位置
 annotation_path = "./config/2012_train.txt"
 # 获取classes和anchor的位置
-classes_path = './config/voc_classes.txt'
+classes_path = 'voc_classes.txt'
 anchors_path = './config/voc_anchor.txt'
 # 预训练模型的位置
 weights_path = 'yolo_weights.h5'
@@ -41,8 +27,10 @@ epochs = 50
 learn_rating = 1e-3
 
 # 获得分类名
-class_names = get_classes(classes_path)
-
+class_names = ['aeroplane', 'bicycle', 'bird', 'boat', 'bottle',
+               'bus', 'car', 'cat', 'chair', 'cow',
+               'diningtable', 'dog', 'horse', 'motorbike', 'person',
+               'pottedplant', 'sheep', 'sofa', 'train', 'tvmonitor']
 # 类别总数
 num_classes = len(class_names)
 

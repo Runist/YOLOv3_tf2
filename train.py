@@ -7,9 +7,10 @@
 
 import tensorflow as tf
 import config.config as cfg
-from dataReader import ReadYolo3Data
+from core.dataReader import ReadYolo3Data
+from core.loss import YoloLoss
 from model.model import yolo_body
-from loss import YoloLoss
+
 
 import os
 from tensorflow.keras.layers import Input, Lambda
@@ -81,8 +82,9 @@ def main():
             a = "*" * int(rate * 70)
             b = "." * int((1 - rate) * 70)
             loss = train_loss.result().numpy()
+
             print("\r{}/{} {:^3.0f}%[{}->{}] - loss:{:.4f}".
-                  format(batch, total_step, int(rate * 70), a, b, loss), end='')
+                  format(batch, total_step, int(rate * 100), a, b, loss), end='')
             step += 1
         print()
 
@@ -106,8 +108,7 @@ def main():
         # 只保存最好模型
         if valid_loss.result() < best_test_loss:
             best_test_loss = valid_loss.result()
-            model.save_weights("./logs/{}-{}-{:.2f}.ckpt".
-                               format(cfg.model_name, epoch, best_test_loss.numpy()), save_format='tf')
+            model.save_weights("./logs/{}.ckpt".format(cfg.model_name), save_format='tf')
 
         # EarlyStopping
         if epoch > 1 and history_loss[epoch - 1] - history_loss[epoch] > min_delta:

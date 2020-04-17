@@ -90,15 +90,15 @@ def process_pred(y_pred, anchors, calc_loss=False):
     # box_xy(b, 13, 13, 3, 2)  grid(13, 13, 1, 2)  grid_size shape-()-13
     # box_wh(b, 13, 13, 3, 2)  anchors_tensor(1, 1, 1, 3, 2)
     box_xy = (box_xy + grid) / tf.cast(grid_size, tf.float32)
-    # 要注意，xy除去的是13，wh除去的416，是因为下面wh用的也是416
+    # 要注意，xy除去的是13，wh除去的416，是因为下面wh用的也是416(如果xywh不归一化，和概率值一起训练肯定不收敛啊)
     box_wh = tf.exp(box_wh) * anchors / cfg.input_shape
     # 最后 box_xy、box_wh 都是 (b, 13, 13, 3, 2)
 
     # 把xy,wh 合并成pred_box在最后一个维度上（axis=-1）
-    pred_box = tf.concat([box_xy, box_wh], axis=-1)  # original xywh for loss
+    pred_xywh = tf.concat([box_xy, box_wh], axis=-1)  # original xywh for loss
 
     if calc_loss:
-        return pred_box, grid
+        return pred_xywh, grid
 
     return box_xy, box_wh, confidence, class_probs
 
@@ -121,8 +121,13 @@ def YoloLoss(anchors):
         object_mask = y_true[..., 4:5]
         true_class = y_true[..., 5:]
 
-        # 将无效区域设为0
+        # 将无效区域设为0，因为y_true中没有目标的区域设置为0，Log(0)将会导致原本0区域无穷小，也就是-Inf
+        # where就是即判断，condition is True 就全0，False就为原值，所以就将原值保留，-inf变为0
         true_wh = tf.where(tf.math.is_inf(true_wh), tf.zeros_like(true_wh), true_wh)
+        # true_wh = tf.math.log(
+        #     tf.where(tf.equal(y_true[..., 2:4] / anchors * input_shape, 0),
+        #              tf.ones_like(y_true[..., 2:4]),
+        #              y_true[..., 2:4] / anchors * input_shape))
         # 乘上一个比例，让小框的在total loss中有更大的占比，这个系数是个超参数，如果小物体太多，可以适当调大
         box_loss_scale = 2 - y_true[..., 2:3] * y_true[..., 3:4]
 
@@ -171,7 +176,6 @@ def YoloLoss(anchors):
 
         return xy_loss + wh_loss + confidence_loss + class_loss
     return compute_loss
-
 
 
 if __name__ == '__main__':

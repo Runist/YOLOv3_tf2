@@ -10,7 +10,7 @@ import config.config as cfg
 from core.loss import process_pred
 
 
-def eval(yolo_outputs, image_shape, max_boxes=20):
+def parse_yolov3_output(yolo_outputs, image_shape, max_boxes=20):
     """
     根据Yolo模型的输出进行非极大值抑制，获取最后的物体检测框和物体检测类别
     :param yolo_outputs: yolo模型的输出
@@ -23,8 +23,8 @@ def eval(yolo_outputs, image_shape, max_boxes=20):
 
     # 对三个尺度的输出获取每个预测box坐标和box的分数，score计算为 置信度 * 类别概率
     for i in range(len(yolo_outputs)):
-        mask_index = cfg.anchor_mask[i]
-        _boxes, _box_scores = boxes_and_scores(yolo_outputs[i], cfg.anchors[mask_index], image_shape)
+        mask_index = cfg.anchor_masks[i]
+        _boxes, _box_scores = get_boxes_and_scores(yolo_outputs[i], cfg.anchors[mask_index], image_shape)
         boxes.append(_boxes)
         box_scores.append(_box_scores)
 

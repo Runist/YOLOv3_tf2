@@ -164,7 +164,8 @@ class ReadYolo3Data:
         iou = intersect_area / (box_area + anchor_area - intersect_area)
         best_anchors = np.argmax(iou, axis=-1)
 
-        # len(besh_anchor)是label中标了几个框，他就计算出几个，所以每个都要计算合适的先验框
+        # best_anchor是个list，label中标了几个框，他就计算出几个。
+        # enumerate对他进行遍历，所以每个框都要计算合适的先验框
         for key, value in enumerate(best_anchors):
             # 遍历三次（三种类型的框 对应 三个不同大小的特征层）
             for n in range(cfg.num_bbox):
@@ -198,7 +199,7 @@ class ReadYolo3Data:
             dataset = dataset.repeat().shuffle(buffer_size=10).batch(self.batch_size)
             # prefetch解耦了 数据产生的时间 和 数据消耗的时间
             # prefetch官方的说法是可以在gpu训练模型的同时提前预处理下一批数据
-            dataset = dataset.prefetch(self.batch_size)
+            dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
         else:
             dataset = dataset.repeat().batch(self.batch_size).prefetch(self.batch_size)
 
@@ -206,11 +207,13 @@ class ReadYolo3Data:
 
 
 if __name__ == '__main__':
-    reader = ReadYolo3Data(cfg.annotation_path, cfg.input_shape, cfg.batch_size)
+    reader = ReadYolo3Data("../config/2012_train.txt", cfg.input_shape, cfg.batch_size)
     train, valid = reader.read_data_and_split_data()
-    train_datasets = reader.make_datasets(train)
+    # train_datasets = reader.make_datasets(train)
+    # image, bbox = next(iter(train_datasets))
+    # print(bbox[2].shape)
 
-    # reader.parse(train[0])
+    reader.parse(train[0])
 
-    image, bbox = next(iter(train_datasets))
-    print(bbox[2].shape)
+
+
