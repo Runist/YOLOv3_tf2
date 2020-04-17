@@ -124,10 +124,6 @@ def YoloLoss(anchors):
         # 将无效区域设为0，因为y_true中没有目标的区域设置为0，Log(0)将会导致原本0区域无穷小，也就是-Inf
         # where就是即判断，condition is True 就全0，False就为原值，所以就将原值保留，-inf变为0
         true_wh = tf.where(tf.math.is_inf(true_wh), tf.zeros_like(true_wh), true_wh)
-        # true_wh = tf.math.log(
-        #     tf.where(tf.equal(y_true[..., 2:4] / anchors * input_shape, 0),
-        #              tf.ones_like(y_true[..., 2:4]),
-        #              y_true[..., 2:4] / anchors * input_shape))
         # 乘上一个比例，让小框的在total loss中有更大的占比，这个系数是个超参数，如果小物体太多，可以适当调大
         box_loss_scale = 2 - y_true[..., 2:3] * y_true[..., 3:4]
 

@@ -196,7 +196,7 @@ class ReadYolo3Data:
         if mode == "train":
             # 打乱数据，这里的shuffle的值越接近整个数据集的大小，越贴近概率分布
             # 但是电脑往往没有这么大的内存，所以适量就好
-            dataset = dataset.repeat().shuffle(buffer_size=10).batch(self.batch_size)
+            dataset = dataset.repeat().shuffle(buffer_size=1000).batch(self.batch_size)
             # prefetch解耦了 数据产生的时间 和 数据消耗的时间
             # prefetch官方的说法是可以在gpu训练模型的同时提前预处理下一批数据
             dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
