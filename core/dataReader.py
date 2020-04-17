@@ -25,9 +25,9 @@ class ReadYolo3Data:
         with open(self.data_path, "r") as f:
             files = f.readlines()
 
-        split = int(0.9 * len(files))
-        train = files[:split]
-        valid = files[split:]
+        split = int(cfg.valid_rate * len(files))
+        train = files[split:]
+        valid = files[:split]
 
         return train, valid
 
@@ -99,7 +99,7 @@ class ReadYolo3Data:
         image = tf.clip_by_value(image, clip_value_min=0.0, clip_value_max=1.0)
 
         # 为填充过后的图片，矫正bbox坐标
-        box_data = np.zeros((self.max_boxes, 5))
+        box_data = np.zeros((self.max_boxes, 5), dtype='float32')
         if len(bbox) > 0:
             # np.random.shuffle(bbox)
             if len(bbox) > self.max_boxes:
