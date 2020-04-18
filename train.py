@@ -30,8 +30,8 @@ def main():
     # 读取数据
     reader = ReadYolo3Data(cfg.annotation_path, cfg.input_shape, cfg.batch_size)
     train, valid = reader.read_data_and_split_data()
-    train_datasets = reader.make_datasets(train)
-    valid_datasets = reader.make_datasets(valid)
+    train_datasets = reader.make_datasets(train, "train")
+    valid_datasets = reader.make_datasets(valid, "valid")
 
     # 定义模型
     model = yolo_body()
