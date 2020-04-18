@@ -51,6 +51,8 @@ def main():
 
     # low level 的方式计算loss
     for epoch in range(1, cfg.epochs + 1):
+        train_loss.reset_states()
+        valid_loss.reset_states()
         step = 0
         print("Epoch {}/{}".format(epoch, cfg.epochs))
         total_step = len(train) // cfg.batch_size
@@ -101,6 +103,7 @@ def main():
 
             # 更新valid_loss
             valid_loss.update_state(total_valid_loss)
+
         print('Loss: {:.2f}, Test Loss: {:.2f}\n'.format(train_loss.result(), valid_loss.result()))
         # 保存loss，可以选择train的loss
         history_loss.append(valid_loss.result().numpy())
@@ -111,7 +114,7 @@ def main():
             model.save_weights("./logs/{}.ckpt".format(cfg.model_name), save_format='tf')
 
         # EarlyStopping
-        if epoch > 1 and history_loss[epoch - 1] - history_loss[epoch] > min_delta:
+        if epoch > 1 and history_loss[epoch - 2] - history_loss[epoch - 1] > min_delta:
             patience_cnt = 0
         else:
             patience_cnt += 1
