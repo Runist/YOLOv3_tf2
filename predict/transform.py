@@ -51,6 +51,8 @@ def parse_yolov3_output(yolo_outputs, image_shape, max_boxes=20):
                                                  iou_threshold=cfg.iou_threshold)
 
         # 获取非极大抑制后的结果，下列三个分别是：框的位置，得分与种类
+        # tf.gather(params, indices, axis=0)
+        # 从params的axis维根据indices的参数值获取切片
         class_boxes = tf.gather(class_boxes, nms_index)
         class_box_scores = tf.gather(class_box_scores, nms_index)
         classes = tf.ones_like(class_box_scores, 'int32') * c
@@ -99,8 +101,8 @@ def correct_boxes(box_xy, box_wh, image_shape):
     input_shape = tf.cast(cfg.input_shape, tf.float32)
     image_shape = tf.cast(image_shape, tf.float32)
 
-    # 送进网络的图片是正方形的，所以不够的地方会用0或1补齐，那么此时，得出来的框是基于正方形的
-    # 以下操作就是将其缩放成原图的样子
+    # 送进网络的图片是正方形的，所以不够的地方会灰色补齐，那么此时，得出来的框是基于正方形的
+    # 以下操作就是将 坐标和宽高 变回成原图的下的尺度
 
     # K.min(input_shape / image_shape)是拿 网络的shape / 图片原来的shape，取最小的那个 算出一个倍数
     # 然后和image_shape * 运算round是四舍五入，计算scale
