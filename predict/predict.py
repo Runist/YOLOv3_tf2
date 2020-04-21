@@ -59,6 +59,15 @@ class Yolov3Predict(object):
         font = ImageFont.truetype(font='font/simhei.ttf', size=np.floor(3e-2 * image.size[1] + 0.5).astype('int32'))
         # 框的厚度
         thickness = (image.size[0] + image.size[1]) // 300
+        # 画框设置不同的颜色
+        hsv_tuples = [(x / len(self.class_names), 1., 1.)
+                      for x in range(len(self.class_names))]
+        self.colors = list(map(lambda x: colorsys.hsv_to_rgb(*x), hsv_tuples))
+        self.colors = list(map(lambda x: (int(x[0] * 255), int(x[1] * 255), int(x[2] * 255)), self.colors))
+        # 打乱颜色
+        np.random.seed(10101)
+        np.random.shuffle(self.colors)
+        np.random.seed(None)
 
         for i, c in list(enumerate(out_classes)):
             predicted_class = self.class_names[c]
@@ -79,7 +88,7 @@ class Yolov3Predict(object):
             right = min(image.size[0], np.floor(right + 0.5).astype('int32'))
 
             # 画框框、写上分类
-            label = '{} {:.2f}'.format(predicted_class, score)
+            label = '{} {:.4f}'.format(predicted_class, score)
             draw = ImageDraw.Draw(image)
             # 获取文字框的大小
             label_size = draw.textsize(label, font)
@@ -136,8 +145,8 @@ class Yolov3Predict(object):
 if __name__ == '__main__':
     os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
-    img_path = "D:/Python_Code/Tensorflow2.0/YOLOv3/VOCdevkit/VOC2012/JPEGImages/2008_007511.jpg"
+    img_path = "D:/Python_Code/Tensorflow2.0/YOLOv3/VOCdevkit/VOC2012/JPEGImages/2007_000033.jpg"
 
-    yolo = Yolov3Predict("../logs/yolo_test.ckpt")
+    yolo = Yolov3Predict(cfg.model_path)
     image = yolo.detect_image(img_path)
     image.show()

@@ -112,6 +112,12 @@ class ReadYolo3Data:
         return image, box_data
 
     def process_true_bbox(self, box_data):
+        """
+        对真实框处理，首先会建立一个13x13，26x26，52x52的特征层，具体的shape是
+        [b, n, n, 3, 25]的特征层，也就意味着，一个特征层最多可以存放n^2个数据
+        :param box_data: 实际框的数据
+        :return: 处理好后的 y_true
+        """
         # [anchors[mask] for mask in anchor_masks]
 
         # 维度(b, max_boxes, 5)还是一样的，只是换一下类型，换成float32
@@ -187,6 +193,12 @@ class ReadYolo3Data:
         return y_true
 
     def make_datasets(self, annotation, mode="train"):
+        """
+        用tf.data的方式读取数据，以提高gpu使用率
+        :param annotation: 数据行[image_path, [x,y,w,h,class ...]]
+        :param mode: 训练集or验证集
+        :return: 数据集
+        """
         # 这是GPU读取方式
         # load train dataset
         dataset = tf.data.Dataset.from_tensor_slices(annotation)
@@ -196,7 +208,7 @@ class ReadYolo3Data:
         if mode == "train":
             # 打乱数据，这里的shuffle的值越接近整个数据集的大小，越贴近概率分布
             # 但是电脑往往没有这么大的内存，所以适量就好
-            dataset = dataset.repeat().shuffle(buffer_size=1000).batch(self.batch_size)
+            dataset = dataset.repeat().shuffle(buffer_size=cfg.shuffle_size).batch(self.batch_size)
             # prefetch解耦了 数据产生的时间 和 数据消耗的时间
             # prefetch官方的说法是可以在gpu训练模型的同时提前预处理下一批数据
             dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)

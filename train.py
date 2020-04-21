@@ -16,6 +16,7 @@ import os
 from tensorflow.keras.layers import Input, Lambda
 from tensorflow.keras.models import Model
 from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.optimizers.schedules import PolynomialDecay
 from tensorflow.keras.metrics import Mean, CategoricalAccuracy
 
 
@@ -30,6 +31,7 @@ def main():
     # 读取数据
     reader = ReadYolo3Data(cfg.annotation_path, cfg.input_shape, cfg.batch_size)
     train, valid = reader.read_data_and_split_data()
+    train, valid = train[:10], valid[:4]
     train_datasets = reader.make_datasets(train, "train")
     valid_datasets = reader.make_datasets(valid, "valid")
 
@@ -37,8 +39,13 @@ def main():
     model = yolo_body()
     yolo_loss = [YoloLoss(cfg.anchors[mask]) for mask in cfg.anchor_masks]
 
-    # 定义优化器、模型评估指标
-    optimizer = Adam(learning_rate=cfg.learn_rating)
+    # 定义优化器和学习率衰减速率
+    # PolynomialDecay参数：cfg.learn_rating 经过 cfg.epochs 衰减到 cfg.learn_rating/10
+    # 1、lr_fn是类似是一个函数，每次需要它来计算当前学习率都会调用它
+    # 2、它具有一个内部计数器，每次调用apply_gradients，就会+1
+    lr_fn = PolynomialDecay(cfg.learn_rating, cfg.epochs, cfg.learn_rating/10, 2)
+    optimizer = Adam(learning_rate=lr_fn)
+    # 定义模型评估指标
     train_loss = Mean(name='train_loss')
     valid_loss = Mean(name='valid_loss')
 
@@ -48,6 +55,10 @@ def main():
     min_delta = 1e-3
     patience_cnt = 0
     history_loss = []
+
+    # 创建summary
+    summary_writer = tf.summary.create_file_writer(logdir=cfg.log_dir)
+    print('Train on {} samples, val on {} samples, with batch size {}.'.format(len(train), len(valid), cfg.batch_size))
 
     # low level 的方式计算loss
     for epoch in range(1, cfg.epochs + 1):
@@ -88,7 +99,6 @@ def main():
             print("\r{}/{} {:^3.0f}%[{}->{}] - loss:{:.4f}".
                   format(batch, total_step, int(rate * 100), a, b, loss), end='')
             step += 1
-        print()
 
         # 计算验证集
         for batch, (images, labels) in enumerate(valid_datasets.take(total_step)):
@@ -104,14 +114,19 @@ def main():
             # 更新valid_loss
             valid_loss.update_state(total_valid_loss)
 
-        print('Loss: {:.2f}, Test Loss: {:.2f}\n'.format(train_loss.result(), valid_loss.result()))
+        print('\nLoss: {:.2f}, Test Loss: {:.2f}\n'.format(train_loss.result(), valid_loss.result()))
         # 保存loss，可以选择train的loss
         history_loss.append(valid_loss.result().numpy())
+
+        # 保存到tensorboard里
+        with summary_writer.as_default():
+            tf.summary.scalar('train_loss', train_loss.result(), step=optimizer.iterations)
+            tf.summary.scalar('valid_loss', valid_loss.result(), step=optimizer.iterations)
 
         # 只保存最好模型
         if valid_loss.result() < best_test_loss:
             best_test_loss = valid_loss.result()
-            model.save_weights("./logs/{}.ckpt".format(cfg.model_name), save_format='tf')
+            model.save_weights(cfg.model_path, save_format='tf')
 
         # EarlyStopping
         if epoch > 1 and history_loss[epoch - 2] - history_loss[epoch - 1] > min_delta:

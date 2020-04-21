@@ -104,7 +104,7 @@ def correct_boxes(box_xy, box_wh, image_shape):
     # 送进网络的图片是正方形的，所以不够的地方会灰色补齐，那么此时，得出来的框是基于正方形的
     # 以下操作就是将 坐标和宽高 变回成原图的下的尺度
 
-    # K.min(input_shape / image_shape)是拿 网络的shape / 图片原来的shape，取最小的那个 算出一个倍数
+    # tf.min(input_shape / image_shape)是拿 网络的shape / 图片原来的shape，取最小的那个 算出一个倍数
     # 然后和image_shape * 运算round是四舍五入，计算scale
     new_shape = tf.round(image_shape * tf.reduce_min(input_shape / image_shape))
     offset = (input_shape - new_shape) / 2. / input_shape
@@ -124,6 +124,6 @@ def correct_boxes(box_xy, box_wh, image_shape):
     ], axis=-1)
 
     boxes *= tf.concat([image_shape, image_shape], axis=-1)
-
     # boxes的shape是 (b, 13, 13, 3, 4)
+
     return boxes

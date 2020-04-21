@@ -17,6 +17,7 @@ weights_path = 'yolo_weights.h5'
 # 训练集和测试集的比例
 valid_rate = 0.1
 batch_size = 2
+shuffle_size = 2
 
 # 相关信息
 input_shape = (416, 416)
@@ -36,9 +37,9 @@ num_classes = len(class_names)
 
 # iou忽略阈值
 ignore_thresh = 0.5
-iou_threshold = 0.5
+iou_threshold = 0.3
 # 分数的阈值（只留下高过这个阈值的box）
-score_threshold = 0.6
+score_threshold = 0.1
 
 # 先验框信息
 anchors = np.array([(10, 13), (16, 30), (33, 23),
@@ -49,6 +50,7 @@ anchors = np.array([(10, 13), (16, 30), (33, 23),
 # 先验框对应索引
 anchor_masks = [[6, 7, 8], [3, 4, 5], [0, 1, 2]]
 
-# 模型保存名字
-model_name = "yolo_test"
-
+# logs path
+log_dir = "./logs/summary/"
+# model path
+model_path = "./logs/model/yolo_test.ckpt"
