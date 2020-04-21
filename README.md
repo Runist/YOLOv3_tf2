@@ -7,6 +7,7 @@
 - [x] 损失函数
 - [x] 使用tf.GradientTape训练
 - [ ] 使用model.fit方式训练
+- [x] Learning rate decay
 - [x] EarlyStopping, Save best model
 - [x] GPU加速
 - [ ] 迁移学习
