@@ -31,7 +31,6 @@ def main():
     # 读取数据
     reader = ReadYolo3Data(cfg.annotation_path, cfg.input_shape, cfg.batch_size)
     train, valid = reader.read_data_and_split_data()
-    train, valid = train[:10], valid[:4]
     train_datasets = reader.make_datasets(train, "train")
     valid_datasets = reader.make_datasets(valid, "valid")
 
