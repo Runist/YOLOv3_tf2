@@ -42,9 +42,14 @@ iou_threshold = 0.3
 score_threshold = 0.1
 
 # 先验框信息
-anchors = np.array([(10, 13), (16, 30), (33, 23),
-                    (30, 61), (62, 45), (59, 119),
-                    (116, 90), (156, 198), (373, 326)],
+# anchors = np.array([(10, 13), (16, 30), (33, 23),
+#                     (30, 61), (62, 45), (59, 119),
+#                     (116, 90), (156, 198), (373, 326)],
+#                    np.float32)
+
+anchors = np.array([(39, 46), (86, 119), (111, 149),
+                    (171, 168), (215, 218), (284, 287),
+                    (298, 311), (411, 327), (450, 438)],
                    np.float32)
 
 # 先验框对应索引
@@ -53,4 +58,5 @@ anchor_masks = [[6, 7, 8], [3, 4, 5], [0, 1, 2]]
 # logs path
 log_dir = "./logs/summary/"
 # model path
-model_path = "./logs/model/yolo_test.ckpt"
+model_path = r"D:\Python_Code\YOLOv3_tf2\logs\model\yolo_test.ckpt"
+

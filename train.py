@@ -134,7 +134,7 @@ def main():
             patience_cnt += 1
 
         if patience_cnt >= patience:
-            tf.print("No improvement for {} times, early stopping optimization".format(patience))
+            tf.print("No improvement for {} times, early stopping optimization.".format(patience))
             break
 
 

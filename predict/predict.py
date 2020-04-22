@@ -49,7 +49,9 @@ class Yolov3Predict(object):
         :param image_path: 图片路径
         """
         start = timer()
-
+        if not os.path.exists(image_path):
+            print("Error,image path is not exists.")
+            exit(-1)
         # 读取预测结果
         out_boxes, out_scores, out_classes = self.predict(image_path)
         image = Image.open(image_path)
@@ -145,7 +147,7 @@ class Yolov3Predict(object):
 if __name__ == '__main__':
     os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
-    img_path = "D:/Python_Code/Tensorflow2.0/YOLOv3/VOCdevkit/VOC2012/JPEGImages/2007_000033.jpg"
+    img_path = "D:/Python_Code/Tensorflow2.0/YOLOv3/VOCdevkit/VOC2012/JPEGImages/2012_000003.jpg"
 
     yolo = Yolov3Predict(cfg.model_path)
     image = yolo.detect_image(img_path)
