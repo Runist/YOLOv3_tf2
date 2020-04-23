@@ -10,7 +10,6 @@ import config.config as cfg
 from core.dataReader import ReadYolo3Data
 from core.loss import YoloLoss
 from model.model import yolo_body
-from test import YoloV3
 
 import os
 from tensorflow.keras.layers import Input, Lambda

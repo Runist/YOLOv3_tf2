@@ -158,7 +158,7 @@ def YoloLoss(anchors):
         ignore_mask = tf.expand_dims(ignore_mask, -1)  # 扩展维度用来后续计算loss (b,13,13,3,1,1)
 
         xy_loss = object_mask * box_loss_scale * tf.square(true_xy, pred_xy)
-        wh_loss = object_mask * box_loss_scale * 0.5 * tf.square(true_wh - pred_wh)
+        wh_loss = object_mask * box_loss_scale * tf.square(true_wh - pred_wh)
         object_conf = tf.nn.sigmoid_cross_entropy_with_logits(object_mask, pred_conf)
         confidence_loss = object_mask * object_conf + (1 - object_mask) * object_conf * ignore_mask
         # 预测类别损失
