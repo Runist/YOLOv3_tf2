@@ -10,7 +10,7 @@ import config.config as cfg
 from core.dataReader import ReadYolo3Data
 from core.loss import YoloLoss
 from model.model import yolo_body
-
+from test import YoloV3
 
 import os
 from tensorflow.keras.layers import Input, Lambda
@@ -72,12 +72,15 @@ def main():
             with tf.GradientTape() as tape:
                 # 得到预测
                 outputs = model(images, training=True)
-                # 计算损失
+                # 计算损失(注意这里收集model.losses的前提是Conv2D的kernel_regularizer参数)
                 regularization_loss = tf.reduce_sum(model.losses)
                 pred_loss = []
-                # yolo_loss是怎么拆包到loss_fn？
+                # yolo_loss、label、output都是3个特征层的数据，通过for 拆包之后，一个loss_fn就是yolo_loss中一个特征层
+                # 然后逐一计算,
                 for output, label, loss_fn in zip(outputs, labels, yolo_loss):
                     pred_loss.append(loss_fn(label, output))
+
+                # 总损失 = yolo损失 + 正则化损失
                 total_train_loss = tf.reduce_sum(pred_loss) + regularization_loss
 
             # 反向传播梯度下降
@@ -103,17 +106,17 @@ def main():
         for batch, (images, labels) in enumerate(valid_datasets.take(total_step)):
             # 得到预测，不training
             outputs = model(images)
-            # 正则化损失？
             regularization_loss = tf.reduce_sum(model.losses)
             pred_loss = []
             for output, label, loss_fn in zip(outputs, labels, yolo_loss):
                 pred_loss.append(loss_fn(label, output))
+
             total_valid_loss = tf.reduce_sum(pred_loss) + regularization_loss
 
             # 更新valid_loss
             valid_loss.update_state(total_valid_loss)
 
-        print('\nLoss: {:.2f}, Test Loss: {:.2f}\n'.format(train_loss.result(), valid_loss.result()))
+        print('\nLoss: {:.4f}, Test Loss: {:.4f}\n'.format(train_loss.result(), valid_loss.result()))
         # 保存loss，可以选择train的loss
         history_loss.append(valid_loss.result().numpy())
 

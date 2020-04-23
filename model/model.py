@@ -59,21 +59,21 @@ def yolo_body():
     input_image = Input(shape=(height, width, 3), dtype='float32')  # [b, 416, 416, 3]
     feat1, feat2, feat3 = darknet53(input_image)
 
-    # 第三个先验框计算 5次卷积 + 2次卷积就可以输出结果
+    # 52x52预测框计算 5次卷积 + 2次卷积就可以输出结果
     conv_feat3, output3 = conv_block_5_conv_block_2(feat3, 512)
 
     # 从第三个分支的结果 -> 1x1卷积 -> 上采样 -> 和第二个分支的结果合并
     upsample_feat3 = conv_upsample(conv_feat3, 256)
     concat_feat2 = Concatenate()([upsample_feat3, feat2])
 
-    # 第二个先验框计算 5次卷积 + 2次卷积就可以输出结果
+    # 26x26预测框计算 5次卷积 + 2次卷积就可以输出结果
     conv_feat2, output2 = conv_block_5_conv_block_2(concat_feat2, 256)
 
     # 从第二个分支的结果 -> 上采样 -> 和第一个分支的结果合并
     upsample_feat2 = conv_upsample(conv_feat2, 128)
     concat_feat1 = Concatenate()([upsample_feat2, feat1])
 
-    # 第一个先验框计算，这边就不需要上采样了
+    # 13x13预测框计算，这边就不需要上采样了
     _, output1 = conv_block_5_conv_block_2(concat_feat1, 128)
 
     # 这里output1、output2、output3的shape分别是52x52, 26x26, 13x13

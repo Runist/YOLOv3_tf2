@@ -39,7 +39,7 @@ num_classes = len(class_names)
 ignore_thresh = 0.5
 iou_threshold = 0.3
 # 分数的阈值（只留下高过这个阈值的box）
-score_threshold = 0.1
+score_threshold = 0.3
 
 # 先验框信息
 # anchors = np.array([(10, 13), (16, 30), (33, 23),
@@ -59,4 +59,3 @@ anchor_masks = [[6, 7, 8], [3, 4, 5], [0, 1, 2]]
 log_dir = "./logs/summary/"
 # model path
 model_path = r"D:\Python_Code\YOLOv3_tf2\logs\model\yolo_test.ckpt"
-

@@ -7,6 +7,7 @@
 
 from tensorflow.keras.layers import Conv2D, Add, ZeroPadding2D
 from tensorflow.keras.layers import LeakyReLU, BatchNormalization
+from tensorflow.keras.regularizers import l2
 
 
 def conv_bn_leaky(inputs, num_filter, kernel_size, strides=(1, 1), bn=True):
@@ -27,7 +28,9 @@ def conv_bn_leaky(inputs, num_filter, kernel_size, strides=(1, 1), bn=True):
         padding = 'valid'
 
     x = Conv2D(num_filter, kernel_size=kernel_size,
-               strides=strides, padding=padding, use_bias=not bn)(x)
+               strides=strides, padding=padding,                   # 这里的参数是只l2求和之后所乘上的系数
+               use_bias=not bn, kernel_regularizer=l2(0.0005))(x)  # 只有添加正则化参数，才能调用model.losses方法
+
     if bn:
         x = BatchNormalization()(x)
         # alpha是x < 0时，变量系数
@@ -67,35 +70,35 @@ def resiual_block(inputs, filters, num_blocks):
     for i in range(num_blocks):
         # 传入残差块 卷积核个数，第一个conv的个数是上面的conv的一半
         # 第二个是和上面的conv的个数一样
-        x = darknet_block(x, [filters//2, filters])
+        x = darknet_block(x, [filters // 2, filters])
 
     return x
 
 
 def darknet53(inputs):
     # input_shape [b, 416, 416, 3]
-    x = conv_bn_leaky(inputs, 32, 3)   # [b, 416, 416, 32]
+    x = conv_bn_leaky(inputs, 32, 3)  # [b, 416, 416, 32]
 
     # -----------------------------------------
-    x = resiual_block(x, 64, 1)             # [b, 208, 208, 64]
+    x = resiual_block(x, 64, 1)  # [b, 208, 208, 64]
 
     # -----------------------------------------x2
     # 注释的原操作，没有可以用resiual_block替代
     # x = conv_bn_leaky(x, 128, 3, strides=(2, 2))
     # x = darknet_block(x, [64, 128])
     # x = darknet_block(x, [64, 128])
-    x = resiual_block(x, 128, 2)            # [b, 104, 104, 128]
+    x = resiual_block(x, 128, 2)  # [b, 104, 104, 128]
 
     # -----------------------------------------x8
-    x = resiual_block(x, 256, 8)            # [b, 52, 52, 256]
+    x = resiual_block(x, 256, 8)  # [b, 52, 52, 256]
     feat1 = x
 
     # -----------------------------------------x8
-    x = resiual_block(x, 512, 8)            # [b, 26, 26, 512]
+    x = resiual_block(x, 512, 8)  # [b, 26, 26, 512]
     feat2 = x
 
     # -----------------------------------------x4
-    x = resiual_block(x, 1024, 4)           # [b, 13, 13, 1024]
+    x = resiual_block(x, 1024, 4)  # [b, 13, 13, 1024]
     feat3 = x
 
     # 下面是完整的darknet53，但是yolov3只是用他的卷积层，不用全连接层和激活层
