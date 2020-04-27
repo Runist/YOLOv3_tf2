@@ -57,33 +57,35 @@ def yolo_body():
     """
     height, width = cfg.input_shape
     input_image = Input(shape=(height, width, 3), dtype='float32')  # [b, 416, 416, 3]
-    feat1, feat2, feat3 = darknet53(input_image)
+    feat_52x52, feat_26x26, feat_13x13 = darknet53(input_image)
 
-    # 52x52预测框计算 5次卷积 + 2次卷积就可以输出结果
-    conv_feat3, output3 = conv_block_5_conv_block_2(feat3, 512)
+    # 13x13预测框计算 5次卷积 + 2次卷积就可以输出结果
+    conv_feat_13x13, output_13x13 = conv_block_5_conv_block_2(feat_13x13, 512)
 
-    # 从第三个分支的结果 -> 1x1卷积 -> 上采样 -> 和第二个分支的结果合并
-    upsample_feat3 = conv_upsample(conv_feat3, 256)
-    concat_feat2 = Concatenate()([upsample_feat3, feat2])
+    # 13x13的特征层 -> 1x1卷积 -> 上采样 -> 和第26x26的特征层合并
+    upsample_feat_26x26 = conv_upsample(conv_feat_13x13, 256)
+    concat_feat26x26 = Concatenate()([upsample_feat_26x26, feat_26x26])
 
     # 26x26预测框计算 5次卷积 + 2次卷积就可以输出结果
-    conv_feat2, output2 = conv_block_5_conv_block_2(concat_feat2, 256)
+    conv_feat_26x26, output_26x26 = conv_block_5_conv_block_2(concat_feat26x26, 256)
 
-    # 从第二个分支的结果 -> 上采样 -> 和第一个分支的结果合并
-    upsample_feat2 = conv_upsample(conv_feat2, 128)
-    concat_feat1 = Concatenate()([upsample_feat2, feat1])
+    # 26x26的特征层 -> 上采样 -> 和52x52的特征层合并
+    upsample_feat_52x52 = conv_upsample(conv_feat_26x26, 128)
+    concat_feat_52x52 = Concatenate()([upsample_feat_52x52, feat_52x52])
 
-    # 13x13预测框计算，这边就不需要上采样了
-    _, output1 = conv_block_5_conv_block_2(concat_feat1, 128)
+    # 52x52预测框计算，这边就不需要上采样了
+    _, output_52x52 = conv_block_5_conv_block_2(concat_feat_52x52, 128)
 
     # 这里output1、output2、output3的shape分别是52x52, 26x26, 13x13
     # 然后reshape为 从(b, size, size, 75) -> (b, size, size, 3, 25)
-    output3 = Lambda(lambda x: yolo_feat_reshape(x), name='reshape_3')(output3)
-    output2 = Lambda(lambda x: yolo_feat_reshape(x), name='reshape_2')(output2)
-    output1 = Lambda(lambda x: yolo_feat_reshape(x), name='reshape_1')(output1)
+    output_52x52 = Lambda(lambda x: yolo_feat_reshape(x), name='reshape_3')(output_52x52)
+    output_26x26 = Lambda(lambda x: yolo_feat_reshape(x), name='reshape_2')(output_26x26)
+    output_13x13 = Lambda(lambda x: yolo_feat_reshape(x), name='reshape_1')(output_13x13)
 
-    model = Model(input_image, [output3, output2, output1])
-    # model.summary()
+    # 实际上13x13的感受野是比较大的，对应的是大的先验框
+    # 相应的52x52感受野是比较小的，检测小物体，先验框也比较小
+    model = Model(input_image, [output_13x13, output_26x26, output_52x52])
+    model.summary()
 
     return model
 

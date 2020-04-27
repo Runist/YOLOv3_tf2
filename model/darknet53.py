@@ -91,15 +91,15 @@ def darknet53(inputs):
 
     # -----------------------------------------x8
     x = resiual_block(x, 256, 8)  # [b, 52, 52, 256]
-    feat1 = x
+    feat52x52 = x
 
     # -----------------------------------------x8
     x = resiual_block(x, 512, 8)  # [b, 26, 26, 512]
-    feat2 = x
+    feat26x26 = x
 
     # -----------------------------------------x4
     x = resiual_block(x, 1024, 4)  # [b, 13, 13, 1024]
-    feat3 = x
+    feat13x13 = x
 
     # 下面是完整的darknet53，但是yolov3只是用他的卷积层，不用全连接层和激活层
     # x = keras.layers.AvgPool2D()(x)
@@ -108,4 +108,4 @@ def darknet53(inputs):
     # predict = keras.layers.Softmax()(x)
     # model = keras.Model(inputs=input_image, outputs=predict)
 
-    return feat1, feat2, feat3
+    return feat52x52, feat26x26, feat13x13

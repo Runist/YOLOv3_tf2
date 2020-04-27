@@ -35,6 +35,7 @@ def main():
 
     # 定义模型
     model = yolo_body()
+    exit(0)
     yolo_loss = [YoloLoss(cfg.anchors[mask]) for mask in cfg.anchor_masks]
 
     # 定义优化器和学习率衰减速率
