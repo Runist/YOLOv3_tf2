@@ -7,7 +7,7 @@
 
 import tensorflow as tf
 import config.config as cfg
-from core.loss import process_pred
+from model.model import yolo_head
 
 
 def parse_yolov3_output(yolo_outputs, image_shape, max_boxes=20):
@@ -76,7 +76,7 @@ def get_boxes_and_scores(feats, anchors, image_shape):
     :param image_shape: 原图片的shape
     :return: boxes(具体坐标) box_scores（box分数）
     """
-    box_xy, box_wh, box_confidence, box_class_probs = process_pred(feats, anchors, calc_loss=False)
+    box_xy, box_wh, box_confidence, box_class_probs = yolo_head(feats, anchors, calc_loss=False)
     boxes = correct_boxes(box_xy, box_wh, image_shape)
     boxes = tf.reshape(boxes, [-1, 4])
     box_scores = box_confidence * box_class_probs

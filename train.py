@@ -35,7 +35,7 @@ def main():
 
     # 定义模型
     model = yolo_body()
-    exit(0)
+    # model.load_weights(cfg.weights_path, by_name=True)
     yolo_loss = [YoloLoss(cfg.anchors[mask]) for mask in cfg.anchor_masks]
 
     # 定义优化器和学习率衰减速率
@@ -57,6 +57,11 @@ def main():
 
     # 创建summary
     summary_writer = tf.summary.create_file_writer(logdir=cfg.log_dir)
+    # 清除summary目录下原有的东西
+    for f in os.listdir(cfg.log_dir):
+        file = os.path.join(cfg.log_dir, f)
+        os.remove(file)
+
     print('Train on {} samples, val on {} samples, with batch size {}.'.format(len(train), len(valid), cfg.batch_size))
 
     # low level 的方式计算loss
