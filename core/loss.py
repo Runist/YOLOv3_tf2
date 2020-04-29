@@ -8,8 +8,6 @@
 import tensorflow as tf
 import config.config as cfg
 from model.model import yolo_body, yolo_head
-import tensorflow.keras as keras
-from tensorflow.keras.losses import binary_crossentropy
 
 
 def box_iou(pred_box, true_box):
@@ -107,7 +105,7 @@ def YoloLoss(anchors):
         ignore_mask = ignore_mask.stack()
         ignore_mask = tf.expand_dims(ignore_mask, -1)  # 扩展维度用来后续计算loss (b,13,13,3,1,1)
 
-        xy_loss = object_mask * box_loss_scale * tf.square(true_xy, pred_xy)
+        xy_loss = object_mask * box_loss_scale * tf.nn.sigmoid_cross_entropy_with_logits(true_xy, pred_xy)
         wh_loss = object_mask * box_loss_scale * tf.square(true_wh - pred_wh)
         object_conf = tf.nn.sigmoid_cross_entropy_with_logits(object_mask, pred_conf)
         confidence_loss = object_mask * object_conf + (1 - object_mask) * object_conf * ignore_mask

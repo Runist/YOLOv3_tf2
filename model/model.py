@@ -125,7 +125,8 @@ def yolo_head(y_pred, anchors, calc_loss=False):
     class_probs = tf.sigmoid(class_probs)
 
     # !!! grid[x][y] == (y, x)
-    # sigmoid(x) + cx，为什么要生成一个grid？
+    # sigmoid(x) + cx，在这里看，生成grid的原因是要和y_true的格式对齐。
+    # 而且加上特征图就是13x13 26x26...一个特征图上的点，就预测一个结果。
     grid_y = tf.tile(tf.reshape(tf.range(grid_size), [-1, 1, 1, 1]), [1, grid_size, 1, 1])
     grid_x = tf.tile(tf.reshape(tf.range(grid_size), [1, -1, 1, 1]), [grid_size, 1, 1, 1])
     grid = tf.concat([grid_x, grid_y], axis=-1)  # [gx, gy, 1, 2]

@@ -3,116 +3,128 @@
 # @Author: Runist
 # @Time : 2020/4/22 15:24
 # @Software: PyCharm
-# @Brief: K-Means计算先验框
+# @Brief: K-Means计算先验框，和之前理解的不太一样，yolo的kmeans条件是需要考虑iou的
 
 
 import numpy as np
 import cv2 as cv
 import os
-from matplotlib import pyplot as plt
-from xml.etree import ElementTree
-from sklearn.cluster import KMeans
 import config.config as cfg
 
 
-def get_wh(annotations_path):
+def txt2boxes(file_path):
     """
-    获取box的宽高信息
-    :param annotations_path: xml路径
-    :return: box的宽高信息，np的结构
+    从train.txt中取出box的相关信息，做成numpy
+    :param file_path: 文件路径
+    :return: np.array
     """
-    all_wh = []
-    xml_path = os.listdir(annotations_path)
+    f = open(file_path, 'r')
+    dataSet = []
+    for line in f:
+        infos = line.split(" ")
+        length = len(infos)
+        for i in range(1, length):
+            width = int(infos[i].split(",")[2]) - int(infos[i].split(",")[0])
+            height = int(infos[i].split(",")[3]) - int(infos[i].split(",")[1])
+            dataSet.append([width, height])
+    result = np.array(dataSet)
+    f.close()
 
-    for path in xml_path:
-        path = os.path.join(annotations_path, path)
-
-        single_box = extract_wh(path)
-        # 把混在一起的wh拆成一个一个
-        for single_wh in single_box:
-            all_wh.append(single_wh)
-
-    return np.array(all_wh, dtype=np.float32)
+    return result
 
 
-def extract_wh(xml_path):
+def iou(boxes, clusters, k):  # 1 box -> k clusters
+    n = boxes.shape[0]
+
+    box_area = boxes[:, 0] * boxes[:, 1]
+    box_area = box_area.repeat(k)
+    box_area = np.reshape(box_area, (n, k))
+
+    cluster_area = clusters[:, 0] * clusters[:, 1]
+    cluster_area = np.tile(cluster_area, [1, n])
+    cluster_area = np.reshape(cluster_area, (n, k))
+
+    box_w_matrix = np.reshape(boxes[:, 0].repeat(k), (n, k))
+    # 将类中心9个数据平铺，在x轴上复制n份
+    cluster_w_matrix = np.reshape(np.tile(clusters[:, 0], (1, n)), (n, k))
+    # 选取box和cluster较小的边
+    min_w_matrix = np.minimum(cluster_w_matrix, box_w_matrix)
+
+    box_h_matrix = np.reshape(boxes[:, 1].repeat(k), (n, k))
+    cluster_h_matrix = np.reshape(np.tile(clusters[:, 1], (1, n)), (n, k))
+    min_h_matrix = np.minimum(cluster_h_matrix, box_h_matrix)
+
+    # 计算交并比
+    inter_area = np.multiply(min_w_matrix, min_h_matrix)
+    result = inter_area / (box_area + cluster_area - inter_area)
+
+    return result
+
+
+def avg_iou(boxes, clusters, k):
+    accuracy = np.mean([np.max(iou(boxes, clusters, k), axis=1)])
+    return accuracy
+
+
+def kmeans(boxes, k, dist=np.median):
     """
-    提取一个xml中的box宽高信息
-    :param xml_path: xml的路径
-    :return: boxes：存有所有wh的信息
+    yolo的kmeans方法
+    :param boxes: 所有box的坐标
+    :param k: 分的类
+    :param dist:
+    :return:
     """
-    # 加载要解析的文件
-    tree = ElementTree.parse(xml_path)
-    # 获取文档的首部，可以理解为 数据结构中树的结构
-    root = tree.getroot()
-    # 提取每个边界框的信息
-    boxes = list()
+    box_number = boxes.shape[0]
+    last_nearest = np.zeros((box_number,))
 
-    # 然后用类似BeautifulSoup的findall()以Xpath语法查找，这是会返回一个列表，可以方便遍历
-    for obj in root.findall('object'):
-        name = obj.find('name').text
+    clusters = boxes[np.random.choice(box_number, k, replace=False)]  # 初始化选取类中心
+    while True:
 
-        # 不在识别类别里的不要，识别难度=1的也不要
-        if name not in cfg.class_names:
-            continue
+        distances = 1 - iou(boxes, clusters, k)
+        current_nearest = np.argmin(distances, axis=1)
 
-        try:
-            xmin = int(obj.find('bndbox/xmin').text)
-            ymin = int(obj.find('bndbox/ymin').text)
-            xmax = int(obj.find('bndbox/xmax').text)
-            ymax = int(obj.find('bndbox/ymax').text)
-        except:
-            continue
+        # 用 “==” 判断两个array 是否相同，返回的是True或False，再用.all方法判断是否全等。
+        if (last_nearest == current_nearest).all():
+            # 聚类中心不再更新，退出
+            break
 
-        w, h = (xmax - xmin), (ymax - ymin)
-        coors = [w, h]
+        for cluster in range(k):
+            # 更新类中心
+            clusters[cluster] = dist(boxes[current_nearest == cluster], axis=0)
 
-        boxes.append(coors)
+        last_nearest = current_nearest
 
-    return boxes
+    return clusters
 
 
-def kmeans(data, num=9):
-    # 定义结束条件和中心选择的方法
-    criteria = (cv.TERM_CRITERIA_EPS + cv.TERM_CRITERIA_MAX_ITER, 10, 1.0)
-    # 重复试验10次，取最好的结果
-    ret, label, center = cv.kmeans(data, num, None, criteria, 10, cv.KMEANS_PP_CENTERS)
-    result = [None] * num
-
-    for i in range(num):
-        # 根据索引提取出不同类
-        result[i] = data[label.ravel() == i]
-        # 给点画上不同颜色
-        plt.scatter(result[i][:, 0], result[i][:, 1])
-
-    # 绘制中心坐标
-    plt.scatter(center[:, 0], center[:, 1], s=80, c='black', marker='d')
-    plt.xlabel('Width'), plt.ylabel('Height')
-    plt.show()
-
+def result2txt(data):
     """
-    km = KMeans(n_clusters=9, init="k-means++", n_init=10, max_iter=3000000, tol=1e-3, random_state=0)
-    label = km.fit_predict(wh)
-    result = [None] * 9
-
-    for i in range(9):
-        # 根据索引提取出不同类
-        result[i] = wh[label.ravel() == i]
-        # 给点画上不同颜色
-        plt.scatter(result[i][:, 0], result[i][:, 1])
-
-    anchors = np.sort(km.cluster_centers_, axis=0, kind="quicksort")
-    print(anchors)
+    转换成txt文档
+    :param data:
+    :return:
     """
-
-    return center
+    f = open(cfg.anchors_path, 'w')
+    row = np.shape(data)[0]
+    for i in range(row):
+        if i == 0:
+            x_y = "%d,%d" % (data[i][0], data[i][1])
+        else:
+            x_y = ", %d,%d" % (data[i][0], data[i][1])
+        f.write(x_y)
+    f.close()
 
 
 if __name__ == '__main__':
-    wh = get_wh(r"D:\Python_Code\Tensorflow2.0\YOLOv3\VOCdevkit\VOC2012\Annotations")
+    cluster_number = 9
+    all_boxes = txt2boxes(cfg.annotation_path)
+    result = kmeans(all_boxes, cluster_number)
+    # 排序，以行为准排序，不会改变顺序
 
-    anchors = kmeans(wh)
-    anchors = np.sort(anchors, axis=0, kind="quicksort")
-    np.savetxt("voc_anchors.txt", anchors, fmt='%d', delimiter=',')
+    anchors = sorted(result.tolist(), key=(lambda x: x[0] + x[1]))
+    result2txt(anchors)
+    print("K anchors:\n {}".format(anchors))
+    print("Accuracy: {:.2f}%".format(avg_iou(all_boxes, result, cluster_number) * 100))
+
+
 
 
