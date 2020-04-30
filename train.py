@@ -43,6 +43,11 @@ def main():
 
     yolo_loss = [YoloLoss(cfg.anchors[mask]) for mask in cfg.anchor_masks]
 
+    # 清除summary目录下原有的东西
+    for f in os.listdir(cfg.log_dir):
+        file = os.path.join(cfg.log_dir, f)
+        os.rmdir(file)
+
     print('Train on {} samples, val on {} samples, with batch size {}.'.format(len(train), len(valid), cfg.batch_size))
     if cfg.train_mode == "eager":
         # 定义优化器和学习率衰减速率
@@ -82,10 +87,6 @@ def low_level_train(model, optimizer, yolo_loss, train_datasets, valid_datasets,
 
     # 创建summary
     summary_writer = tf.summary.create_file_writer(logdir=cfg.log_dir)
-    # 清除summary目录下原有的东西
-    for f in os.listdir(cfg.log_dir):
-        file = os.path.join(cfg.log_dir, f)
-        os.remove(file)
 
     # low level的方式计算loss
     for epoch in range(1, cfg.epochs + 1):

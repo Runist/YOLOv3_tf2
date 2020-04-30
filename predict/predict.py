@@ -147,7 +147,7 @@ class Yolov3Predict(object):
 if __name__ == '__main__':
     os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
-    img_path = "D:/Python_Code/Tensorflow2.0/YOLOv3/VOCdevkit/VOC2012/JPEGImages/2009_005025.jpg"
+    img_path = "D:/Python_Code/Tensorflow2.0/YOLOv3/VOCdevkit/VOC2012/JPEGImages/2008_001007.jpg"
 
     yolo = Yolov3Predict(cfg.model_path)
     image = yolo.detect_image(img_path)

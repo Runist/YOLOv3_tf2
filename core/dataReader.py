@@ -8,6 +8,7 @@
 import tensorflow as tf
 import numpy as np
 import config.config as cfg
+import cv2 as cv
 
 
 class ReadYolo3Data:
@@ -43,6 +44,7 @@ class ReadYolo3Data:
               第二个输入的参数，
               第三个是输出的类型
         """
+        # 先对图片进行尺度处理，再对box位置处理成yolov3的格式
         image, bbox = tf.py_function(self.change_image_bbox, [annotation_line], [tf.float32, tf.int32])
         # py_function没有解析List的返回值，所以要拆包 再合起来传出去
         y_true_13, y_true_26, y_true_52 = tf.py_function(self.process_true_bbox, [bbox], [tf.float32, tf.float32, tf.float32])
@@ -51,21 +53,25 @@ class ReadYolo3Data:
         # 如果py_function的输出有个[..., ...]那么结果也会是列表，一般单个使用的时候，可以不用加[]
         return image, box_data
 
-    def change_image_bbox(self, annotation_line):
+    def change_image_bbox(self, annotation_line, random=True):
         """
         填充或缩小图片，因为有可能不是刚好416x416形状的，因为图片变了，预测框的坐标也要变
-            Args:
-              @param annotation_line: 一行数据
+        :param annotation_line: 一行数据
+        :param random: 数据随机是否随机
+        :return:
         """
-
-        # line = annotation_line.split()
         line = str(annotation_line.numpy(), encoding="utf-8").split()
         image_path = line[0]
         bbox = np.array([np.array(list(map(int, box.split(',')))) for box in line[1:]])
 
         image = tf.io.read_file(image_path)
         image = tf.image.decode_jpeg(image, channels=3)
+        if random:
+            return self._get_random_data(image, bbox)
+        else:
+            return self._get_data(image, bbox)
 
+    def _get_data(self, image, bbox):
         image_height, image_width = tf.shape(image)[0], tf.shape(image)[1]
         input_width, input_height = self.input_shape
 
@@ -84,7 +90,7 @@ class ReadYolo3Data:
         dx = tf.cast(dx_f, tf.int32)
         dy = tf.cast(dy_f, tf.int32)
 
-        # 其实这一块不是双三次线性插值resize导致像素点放大255倍，原因是，无论是cv还是plt在面都i浮点数时，仅解释0-1完整比例
+        # 其实这一块不是双三次线性插值resize导致像素点放大255倍，原因是：无论是cv还是plt在面对浮点数时，仅解释0-1完整比例
         image = tf.image.resize(image, [new_height, new_width], method=tf.image.ResizeMethod.BICUBIC)
         new_image = tf.image.pad_to_bounding_box(image, dy, dx, input_height, input_width)
 
@@ -107,6 +113,106 @@ class ReadYolo3Data:
 
             bbox[:, [0, 2]] = bbox[:, [0, 2]] * scale + dx_f
             bbox[:, [1, 3]] = bbox[:, [1, 3]] * scale + dy_f
+            box_data[:len(bbox)] = bbox
+
+        return image, box_data
+
+    def _get_random_data(self, image, bbox, max_boxes=20):
+        """
+        数据增强（改变长宽比例、大小、亮度、对比度、颜色饱和度）
+        :param image: 图片
+        :param bbox: 实际框坐标
+        :param max_boxes: 最大预测框数目
+        :return: image, bbox_data
+        """
+        def rand(small=0., big=1.):
+            return np.random.rand() * (big - small) + small
+
+        input_width, input_height = self.input_shape
+        image_height, image_width = tf.shape(image)[0], tf.shape(image)[1]
+        flip = False
+
+        # 随机左右翻转50%
+        if rand(0, 1) > 0.5:
+            image = tf.image.random_flip_left_right(image, seed=1)
+            flip = True
+        # 改变亮度，max_delta必须是float且非负数
+        image = tf.image.random_brightness(image, 0.2)
+        # 对比度调节
+        image = tf.image.random_contrast(image, 0.3, 2.0)
+        # # 色相调节
+        image = tf.image.random_hue(image, 0.15)
+        # 饱和度调节
+        image = tf.image.random_saturation(image, 0.3, 2.0)
+
+        # 对图像进行缩放并且进行长和宽的扭曲，改变图片的比例
+        image_ratio = rand(0.6, 1.4)
+        # 随机生成缩放比例，缩小或者放大
+        scale = rand(0.3, 1.5)
+
+        # 50%的比例改变width, 50%比例改变height
+        if rand(0, 1) > 0.5:
+            new_height = int(scale * input_height)
+            new_width = int(input_width * scale * image_ratio)
+        else:
+            new_width = int(scale * input_width)
+            new_height = int(input_height * scale * image_ratio)
+
+        # 这里不以scale作为判断条件是因为，尺度缩放的时候，即使尺度小于1，但图像的长宽比会导致宽比input_shape大
+        # 会导致第二种条件，图像填充为黑色
+        if new_height < input_height or new_width < input_width:
+            new_width = input_width if new_width > input_width else new_width
+            new_height = input_height if new_height > input_height else new_height
+
+            # 将变换后的图像，转换为416x416的图像，其余部分用灰色值填充。
+            # 将图片按照固定长宽比进行缩放 空缺部分 padding
+            dx = tf.cast((input_width - new_width) / 2, tf.int32)
+            dy = tf.cast((input_height - new_height) / 2, tf.int32)
+
+            # 按照计算好的长宽进行resize
+            image = tf.image.resize(image, [new_height, new_width], method=tf.image.ResizeMethod.BICUBIC)
+            new_image = tf.image.pad_to_bounding_box(image, dy, dx, input_height, input_width)
+
+            # 生成image.shape的大小的全1矩阵
+            image_ones = tf.ones_like(image)
+            image_ones_padded = tf.image.pad_to_bounding_box(image_ones, dy, dx, input_height, input_width)
+            # 做个运算，白色区域变成0，填充0的区域变成1，再* 128，然后加上原图，就完成填充灰色的操作
+            image = (1 - image_ones_padded) * 128 + new_image
+
+        else:
+            # 按照计算好的长宽进行resize，然后进行自动的裁剪
+            image = tf.image.resize(image, [new_height, new_width], method=tf.image.ResizeMethod.BICUBIC)
+            image = tf.image.resize_with_crop_or_pad(image, input_height, input_width)
+
+        # 将图片归一化到0和1之间
+        image /= 255.
+        image = tf.clip_by_value(image, clip_value_min=0.0, clip_value_max=1.0)
+
+        # boxes的位置也需要修改一下
+        box_data = np.zeros((max_boxes, 5))
+        if len(bbox) > 0:
+
+            dx = (input_width - new_width) // 2
+            dy = (input_height - new_height) // 2
+
+            bbox[:, [0, 2]] = bbox[:, [0, 2]] * new_width / image_width + dx
+            bbox[:, [1, 3]] = bbox[:, [1, 3]] * new_height / image_height + dy
+            if flip:
+                bbox[:, [0, 2]] = input_width - bbox[:, [2, 0]]
+
+            # 定义边界
+            bbox[:, 0:2][bbox[:, 0:2] < 0] = 0
+            bbox[:, 2][bbox[:, 2] > input_width] = input_width
+            bbox[:, 3][bbox[:, 3] > input_height] = input_height
+
+            # 计算新的长宽
+            box_w = bbox[:, 2] - bbox[:, 0]
+            box_h = bbox[:, 3] - bbox[:, 1]
+            # 去除无效数据
+            bbox = bbox[np.logical_and(box_w > 1, box_h > 1)]  # discard invalid box
+            if len(bbox) > self.max_boxes:
+                bbox = bbox[:self.max_boxes]
+
             box_data[:len(bbox)] = bbox
 
         return image, box_data
@@ -177,7 +283,8 @@ class ReadYolo3Data:
             for n in range(cfg.num_bbox):
                 # 如果key（最优先验框的下表）
                 if value in cfg.anchor_masks[n]:
-                    # 真实框x * grid_shape的x，一般np.array都是（y,x）的格式
+                    # 真实框的x比例 * grid_shape的长度，一般np.array都是（y,x）的格式，floor向下取整
+                    # i = x * 13, i = y * 13 -- 放进特征层对应的grid里
                     i = np.floor(true_boxes[key, 0] * grid_shapes[n][1]).astype('int32')
                     j = np.floor(true_boxes[key, 1] * grid_shapes[n][0]).astype('int32')
 
@@ -225,7 +332,7 @@ if __name__ == '__main__':
     # image, bbox = next(iter(train_datasets))
     # print(bbox[2].shape)
 
-    reader.parse(train[0])
+    reader.parse(train[3])
 
 
 
