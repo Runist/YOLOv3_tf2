@@ -29,10 +29,6 @@ def conv_block_5_conv_block_2(inputs, filters):
     x = conv_bn_leaky(output_5, filters * 2, kernel_size=3)
     output_7 = conv_bn_leaky(x, cfg.num_bbox * (cfg.num_classes+5), kernel_size=1, bn=False)
 
-    # 这里不知道为什么要reshape成 (b, size, size, 3, num+5)才能让后面的yolo_loss中y_true生效
-    # 应该是让y_true与y_pred默认一样
-    # reshape_x = Lambda(lambda x: tf.reshape(x, (-1, tf.shape(x)[1], tf.shape(x)[1], num_bbox, num_classes + 5)))(x)
-
     return output_5, output_7
 
 
@@ -43,35 +39,41 @@ def conv_upsample(inputs, filters):
     :param filters: 卷积核个数
     :return: x
     """
+    if "up_sampling2d" not in conv_upsample.__dict__:
+        conv_upsample.up_sampling2d = 1
+
     x = conv_bn_leaky(inputs, filters, kernel_size=1)
-    x = UpSampling2D(2)(x)
+    x = UpSampling2D(2, name="up_sampling2d_{}".format(conv_upsample.up_sampling2d))(x)
+    conv_upsample.up_sampling2d += 1
 
     return x
 
 
-def yolo_body():
+def yolo_body(pretrain_related=None):
     """
     yolov3主体结构 用darknet53做特征提取，输出三个结果做目标框预测
-
     :return: model
     """
     height, width = cfg.input_shape
-    input_image = Input(shape=(height, width, 3), dtype='float32')  # [b, 416, 416, 3]
-    feat_52x52, feat_26x26, feat_13x13 = darknet53(input_image)
+    input_image = Input(shape=(height, width, 3), dtype='float32', name="input_1")  # [b, 416, 416, 3]
+    if cfg.pretrain:
+        input_image, feat_52x52, feat_26x26, feat_13x13 = pretrain_related
+    else:
+        feat_52x52, feat_26x26, feat_13x13 = darknet53(input_image)
 
     # 13x13预测框计算 5次卷积 + 2次卷积就可以输出结果
     conv_feat_13x13, output_13x13 = conv_block_5_conv_block_2(feat_13x13, 512)
 
     # 13x13的特征层 -> 1x1卷积 -> 上采样 -> 和第26x26的特征层合并
     upsample_feat_26x26 = conv_upsample(conv_feat_13x13, 256)
-    concat_feat26x26 = Concatenate()([upsample_feat_26x26, feat_26x26])
+    concat_feat26x26 = Concatenate(name="concatenate_1")([upsample_feat_26x26, feat_26x26])
 
     # 26x26预测框计算 5次卷积 + 2次卷积就可以输出结果
     conv_feat_26x26, output_26x26 = conv_block_5_conv_block_2(concat_feat26x26, 256)
 
     # 26x26的特征层 -> 上采样 -> 和52x52的特征层合并
     upsample_feat_52x52 = conv_upsample(conv_feat_26x26, 128)
-    concat_feat_52x52 = Concatenate()([upsample_feat_52x52, feat_52x52])
+    concat_feat_52x52 = Concatenate(name="concatenate_2")([upsample_feat_52x52, feat_52x52])
 
     # 52x52预测框计算，这边就不需要上采样了
     _, output_52x52 = conv_block_5_conv_block_2(concat_feat_52x52, 128)

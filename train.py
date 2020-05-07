@@ -6,6 +6,7 @@
 # @Brief: 训练脚本
 
 import tensorflow as tf
+import shutil
 import config.config as cfg
 from core.dataReader import ReadYolo3Data
 from core.loss import YoloLoss
@@ -21,8 +22,6 @@ from tensorflow.keras.callbacks import ReduceLROnPlateau, EarlyStopping, TensorB
 
 
 def main():
-    # 选择编号为0的GPU
-    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
     gpus = tf.config.experimental.list_physical_devices("GPU")
     if gpus:
         for gpu in gpus:
@@ -36,17 +35,25 @@ def main():
     train_steps = len(train) // cfg.batch_size
     valid_steps = len(valid) // cfg.batch_size
 
-    # 定义模型
-    model = yolo_body()
+    # 是否预训练
     if cfg.pretrain:
-        model.load_weights(cfg.model_path)
+        # 定义模型
+        pretrain_model = tf.keras.models.load_model(cfg.pretrain_weights_path, compile=False)
+        pretrain_model.trainable = False
+        input_image = pretrain_model.input
+        feat_52x52, feat_26x26, feat_13x13 = pretrain_model.layers[92].output, \
+                                             pretrain_model.layers[152].output, \
+                                             pretrain_model.layers[184].output
+        model = yolo_body([input_image, feat_52x52, feat_26x26, feat_13x13])
+    else:
+        model = yolo_body()
 
     yolo_loss = [YoloLoss(cfg.anchors[mask]) for mask in cfg.anchor_masks]
 
     # 清除summary目录下原有的东西
     for f in os.listdir(cfg.log_dir):
         file = os.path.join(cfg.log_dir, f)
-        os.rmdir(file)
+        shutil.rmtree(file)
 
     print('Train on {} samples, val on {} samples, with batch size {}.'.format(len(train), len(valid), cfg.batch_size))
     if cfg.train_mode == "eager":
@@ -181,10 +188,9 @@ def high_level_train(model, optimizer, loss, train_datasets, valid_datasets, tra
     :param valid_steps: 同上
     :return: None
     """
-
     callbacks = [
         ReduceLROnPlateau(verbose=1),
-        EarlyStopping(patience=5, verbose=1),
+        EarlyStopping(patience=10, verbose=1),
         TensorBoard(log_dir=cfg.log_dir)
     ]
 

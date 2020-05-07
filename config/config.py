@@ -12,7 +12,7 @@ annotation_path = "./config/2012_train.txt"
 classes_path = 'voc_classes.txt'
 anchors_path = './config/voc_anchors.txt'
 # 预训练模型的位置
-weights_path = 'yolo_weights.h5'
+pretrain_weights_path = r"D:\Python_Code\YOLOv3_tf2\config\convert_yolov3.h5"
 # 是否预训练
 pretrain = True
 # 训练的方式
@@ -62,6 +62,6 @@ anchors = np.array([(10, 13), (16, 30), (33, 23),
 anchor_masks = [[6, 7, 8], [3, 4, 5], [0, 1, 2]]
 
 # logs path
-log_dir = "./logs/summary/"
+log_dir = r".\logs\summary"
 # model path
 model_path = r"D:\Python_Code\YOLOv3_tf2\logs\model\yolo_test.h5"
