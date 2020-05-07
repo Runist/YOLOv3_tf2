@@ -22,6 +22,10 @@ from tensorflow.keras.callbacks import ReduceLROnPlateau, EarlyStopping, TensorB
 
 
 def main():
+
+    # 把变量在哪个 设备上打印出来
+    tf.debugging.set_log_device_placement(True)
+
     gpus = tf.config.experimental.list_physical_devices("GPU")
     if gpus:
         for gpu in gpus:

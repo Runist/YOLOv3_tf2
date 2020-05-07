@@ -79,9 +79,6 @@ def main():
 
     for section in cfg_parser.sections():
         print('Parsing section {}'.format(section))
-        if section == "convolutional_58" or section == "convolutional_66" or section == "convolutional_74":
-            continue
-
         if section.startswith('convolutional'):
             filters = int(cfg_parser[section]['filters'])
             size = int(cfg_parser[section]['size'])
