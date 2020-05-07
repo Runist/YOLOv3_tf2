@@ -18,7 +18,7 @@ from tensorflow.keras.models import Model
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.optimizers.schedules import PolynomialDecay
 from tensorflow.keras.metrics import Mean, CategoricalAccuracy
-from tensorflow.keras.callbacks import ReduceLROnPlateau, EarlyStopping, TensorBoard
+from tensorflow.keras.callbacks import ReduceLROnPlateau, EarlyStopping, TensorBoard, ModelCheckpoint
 
 
 def main():
@@ -202,8 +202,10 @@ def high_level_train(optimizer, loss, train_datasets, valid_datasets, train_step
     callbacks = [
         ReduceLROnPlateau(verbose=1),
         EarlyStopping(patience=10, verbose=1),
-        TensorBoard(log_dir=cfg.log_dir)
+        TensorBoard(log_dir=cfg.log_dir),
+        ModelCheckpoint(cfg.log_dir, save_best_only=True, save_weights_only=True)
     ]
+
     strategy = tf.distribute.MirroredStrategy()
     with strategy.scope():
         model = create_model()
