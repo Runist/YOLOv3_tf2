@@ -63,10 +63,14 @@ def main():
         # 2、它具有一个内部计数器，每次调用apply_gradients，就会+1
         lr_fn = PolynomialDecay(cfg.learn_rating, cfg.epochs, cfg.learn_rating / 10, 2)
         optimizer = Adam(learning_rate=lr_fn)
-        low_level_train(model, optimizer, yolo_loss, train_datasets, valid_datasets, train_steps, valid_steps)
+        strategy = tf.distribute.MirroredStrategy()
+        with strategy.scope():
+            low_level_train(model, optimizer, yolo_loss, train_datasets, valid_datasets, train_steps, valid_steps)
     else:
         optimizer = Adam(learning_rate=cfg.learn_rating)
-        high_level_train(model, optimizer, yolo_loss, train_datasets, valid_datasets, train_steps, valid_steps)
+        strategy = tf.distribute.MirroredStrategy()
+        with strategy.scope():
+            high_level_train(model, optimizer, yolo_loss, train_datasets, valid_datasets, train_steps, valid_steps)
 
 
 def low_level_train(model, optimizer, yolo_loss, train_datasets, valid_datasets, train_steps, valid_steps):
