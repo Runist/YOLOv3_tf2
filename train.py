@@ -35,19 +35,6 @@ def main():
     train_steps = len(train) // cfg.batch_size
     valid_steps = len(valid) // cfg.batch_size
 
-    # 是否预训练
-    if cfg.pretrain:
-        # 定义模型
-        pretrain_model = tf.keras.models.load_model(cfg.pretrain_weights_path, compile=False)
-        pretrain_model.trainable = False
-        input_image = pretrain_model.input
-        feat_52x52, feat_26x26, feat_13x13 = pretrain_model.layers[92].output, \
-                                             pretrain_model.layers[152].output, \
-                                             pretrain_model.layers[184].output
-        model = yolo_body([input_image, feat_52x52, feat_26x26, feat_13x13])
-    else:
-        model = yolo_body()
-
     yolo_loss = [YoloLoss(cfg.anchors[mask]) for mask in cfg.anchor_masks]
 
     # 清除summary目录下原有的东西
@@ -63,16 +50,38 @@ def main():
         # 2、它具有一个内部计数器，每次调用apply_gradients，就会+1
         lr_fn = PolynomialDecay(cfg.learn_rating, cfg.epochs, cfg.learn_rating / 10, 2)
         optimizer = Adam(learning_rate=lr_fn)
-        low_level_train(model, optimizer, yolo_loss, train_datasets, valid_datasets, train_steps, valid_steps)
+        low_level_train(optimizer, yolo_loss, train_datasets, valid_datasets, train_steps, valid_steps)
     else:
         optimizer = Adam(learning_rate=cfg.learn_rating)
-        high_level_train(model, optimizer, yolo_loss, train_datasets, valid_datasets, train_steps, valid_steps)
+        high_level_train(optimizer, yolo_loss, train_datasets, valid_datasets, train_steps, valid_steps)
 
 
-def low_level_train(model, optimizer, yolo_loss, train_datasets, valid_datasets, train_steps, valid_steps):
+def create_model():
+    """
+    创建模型，方便MirroredStrategy的操作
+    :return: Model
+    """
+    # 是否预训练
+    if cfg.pretrain:
+        print('Load weights {}.'.format(cfg.pretrain_weights_path))
+        # 定义模型
+        pretrain_model = tf.keras.models.load_model(cfg.pretrain_weights_path, compile=False)
+        pretrain_model.trainable = False
+        input_image = pretrain_model.input
+        feat_52x52, feat_26x26, feat_13x13 = pretrain_model.layers[92].output, \
+                                             pretrain_model.layers[152].output, \
+                                             pretrain_model.layers[184].output
+        model = yolo_body([input_image, feat_52x52, feat_26x26, feat_13x13])
+    else:
+        print("Train all layers.")
+        model = yolo_body()
+
+    return model
+
+
+def low_level_train(optimizer, yolo_loss, train_datasets, valid_datasets, train_steps, valid_steps):
     """
     以底层的方式训练，这种方式更好地观察训练过程，监视变量的变化
-    :param model: 模型结构
     :param optimizer: 优化器
     :param yolo_loss: 自定义的loss function
     :param train_datasets: 以tf.data封装好的训练集数据
@@ -81,6 +90,9 @@ def low_level_train(model, optimizer, yolo_loss, train_datasets, valid_datasets,
     :param valid_steps: 同上
     :return: None
     """
+    # 创建模型结构
+    model = create_model()
+
     # 定义模型评估指标
     train_loss = Mean(name='train_loss')
     valid_loss = Mean(name='valid_loss')
@@ -176,10 +188,9 @@ def low_level_train(model, optimizer, yolo_loss, train_datasets, valid_datasets,
             break
 
 
-def high_level_train(model, optimizer, loss, train_datasets, valid_datasets, train_steps, valid_steps):
+def high_level_train(optimizer, loss, train_datasets, valid_datasets, train_steps, valid_steps):
     """
     使用fit_generator方式训练，可以知道训练完的时间，以及更规范的添加callbacks参数
-    :param model: 模型结构
     :param optimizer: 优化器
     :param loss: 自定义的loss function
     :param train_datasets: 以tf.data封装好的训练集数据
@@ -193,16 +204,19 @@ def high_level_train(model, optimizer, loss, train_datasets, valid_datasets, tra
         EarlyStopping(patience=10, verbose=1),
         TensorBoard(log_dir=cfg.log_dir)
     ]
+    strategy = tf.distribute.MirroredStrategy()
+    with strategy.scope():
+        model = create_model()
+        model.compile(optimizer=optimizer, loss=loss)
 
-    model.compile(optimizer=optimizer, loss=loss)
     # initial_epoch用于恢复之前的训练
     model.fit(train_datasets,
-                        steps_per_epoch=max(1, train_steps),
-                        validation_data=valid_datasets,
-                        validation_steps=max(1, valid_steps),
-                        epochs=cfg.epochs,
-                        initial_epoch=0,
-                        callbacks=callbacks)
+              steps_per_epoch=max(1, train_steps),
+              validation_data=valid_datasets,
+              validation_steps=max(1, valid_steps),
+              epochs=cfg.epochs,
+              initial_epoch=0,
+              callbacks=callbacks)
 
     model.save_weights(cfg.model_path)
 
