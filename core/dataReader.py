@@ -48,7 +48,12 @@ class ReadYolo3Data:
         image, bbox = tf.py_function(self.change_image_bbox, [annotation_line], [tf.float32, tf.int32])
         # py_function没有解析List的返回值，所以要拆包 再合起来传出去
         y_true_13, y_true_26, y_true_52 = tf.py_function(self.process_true_bbox, [bbox], [tf.float32, tf.float32, tf.float32])
+        y_true_13.set_shape([13, 13, 3, 25])
+        y_true_26.set_shape([26, 26, 3, 25])
+        y_true_52.set_shape([52, 52, 3, 25])
         box_data = y_true_13, y_true_26, y_true_52
+
+        image.set_shape([416, 416, 3])
 
         # 如果py_function的输出有个[..., ...]那么结果也会是列表，一般单个使用的时候，可以不用加[]
         return image, box_data

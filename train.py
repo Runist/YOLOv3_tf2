@@ -22,10 +22,6 @@ from tensorflow.keras.callbacks import ReduceLROnPlateau, EarlyStopping, TensorB
 
 
 def main():
-
-    # 把变量在哪个 设备上打印出来
-    tf.debugging.set_log_device_placement(True)
-
     gpus = tf.config.experimental.list_physical_devices("GPU")
     if gpus:
         for gpu in gpus:
@@ -67,14 +63,10 @@ def main():
         # 2、它具有一个内部计数器，每次调用apply_gradients，就会+1
         lr_fn = PolynomialDecay(cfg.learn_rating, cfg.epochs, cfg.learn_rating / 10, 2)
         optimizer = Adam(learning_rate=lr_fn)
-        strategy = tf.distribute.MirroredStrategy()
-        with strategy.scope():
-            low_level_train(model, optimizer, yolo_loss, train_datasets, valid_datasets, train_steps, valid_steps)
+        low_level_train(model, optimizer, yolo_loss, train_datasets, valid_datasets, train_steps, valid_steps)
     else:
         optimizer = Adam(learning_rate=cfg.learn_rating)
-        strategy = tf.distribute.MirroredStrategy()
-        with strategy.scope():
-            high_level_train(model, optimizer, yolo_loss, train_datasets, valid_datasets, train_steps, valid_steps)
+        high_level_train(model, optimizer, yolo_loss, train_datasets, valid_datasets, train_steps, valid_steps)
 
 
 def low_level_train(model, optimizer, yolo_loss, train_datasets, valid_datasets, train_steps, valid_steps):
@@ -204,7 +196,7 @@ def high_level_train(model, optimizer, loss, train_datasets, valid_datasets, tra
 
     model.compile(optimizer=optimizer, loss=loss)
     # initial_epoch用于恢复之前的训练
-    model.fit_generator(train_datasets,
+    model.fit(train_datasets,
                         steps_per_epoch=max(1, train_steps),
                         validation_data=valid_datasets,
                         validation_steps=max(1, valid_steps),
