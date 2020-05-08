@@ -45,7 +45,7 @@ num_classes = len(class_names)
 ignore_thresh = 0.5
 iou_threshold = 0.3
 # 分数的阈值（只留下高过这个阈值的box）
-score_threshold = 0.1
+score_threshold = 0.5
 
 # 先验框信息
 anchors = np.array([(10, 13), (16, 30), (33, 23),
@@ -61,7 +61,9 @@ anchors = np.array([(10, 13), (16, 30), (33, 23),
 # 先验框对应索引
 anchor_masks = [[6, 7, 8], [3, 4, 5], [0, 1, 2]]
 
-# logs path
+# tensorboard存储路径
 log_dir = r".\logs\summary"
-# model path
+# 模型路径
 model_path = r"D:\Python_Code\YOLOv3_tf2\logs\model\yolo_test.h5"
+# 是否预测（预训练习影响到模型初始化）
+predict = False
