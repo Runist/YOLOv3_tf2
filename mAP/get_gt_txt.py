@@ -6,8 +6,6 @@
 # @Brief: 将真实图片转成mAP的txt检测格式
 
 import sys
-import os
-import glob
 import xml.etree.ElementTree as ET
 import config.config as cfg
 
