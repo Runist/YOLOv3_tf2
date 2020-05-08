@@ -14,7 +14,7 @@ anchors_path = './config/voc_anchors.txt'
 # 预训练模型的位置
 pretrain_weights_path = r"D:\Python_Code\YOLOv3_tf2\config\convert_yolov3.h5"
 # 是否预训练
-pretrain = True
+pretrain = False
 # 训练的方式
 train_mode = "fit"
 
@@ -65,5 +65,3 @@ anchor_masks = [[6, 7, 8], [3, 4, 5], [0, 1, 2]]
 log_dir = r".\logs\summary"
 # 模型路径
 model_path = r"D:\Python_Code\YOLOv3_tf2\logs\model\yolo_test.h5"
-# 是否预测（预训练习影响到模型初始化）
-predict = False
