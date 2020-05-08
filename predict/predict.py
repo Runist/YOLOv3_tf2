@@ -10,13 +10,17 @@ import numpy as np
 import colorsys
 import os
 
-from transform import parse_yolov3_output
-from model.model import yolo_body
-
 from PIL import Image, ImageFont, ImageDraw
 from timeit import default_timer as timer
 from keras.models import load_model
 from keras.layers import Input
+
+
+from model.model import yolo_body
+if __name__ == "__main__":
+    from transform import parse_yolov3_output
+else:
+    from predict.transform import parse_yolov3_output
 
 
 class Yolov3Predict(object):
@@ -25,6 +29,7 @@ class Yolov3Predict(object):
         self.class_names = cfg.class_names
         self.anchors = cfg.anchors
         self.model_path = model_path
+        self.score = cfg.score_threshold
 
     def predict(self, image_path):
         """
@@ -35,12 +40,12 @@ class Yolov3Predict(object):
         image, width, height = self.read_image(image_path)
         model = yolo_body()
 
-        print("loading weights...")
+        # print("loading weights...")
         model.load_weights(self.model_path)
 
         output = model.predict(image)
 
-        boxes, scores, classes = parse_yolov3_output(output, (height, width), max_boxes=20)
+        boxes, scores, classes = parse_yolov3_output(output, (height, width), self.score, max_boxes=20)
         return boxes, scores, classes
 
     def detect_image(self, image_path):
@@ -147,7 +152,7 @@ class Yolov3Predict(object):
 if __name__ == '__main__':
     os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
-    img_path = "D:/Python_Code/Tensorflow2.0/YOLOv3/VOCdevkit/VOC2012/JPEGImages/2008_001007.jpg"
+    img_path = "D:/Python_Code/Tensorflow2.0/YOLOv3/VOCdevkit/VOC2012/JPEGImages/2010_000996.jpg"
 
     yolo = Yolov3Predict(cfg.model_path)
     image = yolo.detect_image(img_path)

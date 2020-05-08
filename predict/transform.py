@@ -10,11 +10,12 @@ import config.config as cfg
 from model.model import yolo_head
 
 
-def parse_yolov3_output(yolo_outputs, image_shape, max_boxes=20):
+def parse_yolov3_output(yolo_outputs, image_shape, score_threshold, max_boxes=20):
     """
     根据Yolo模型的输出进行非极大值抑制，获取最后的物体检测框和物体检测类别
     :param yolo_outputs: yolo模型的输出
     :param image_shape: 原图片的shape
+    :param score_threshold: 低于这个分数的东西框不要
     :param max_boxes: 最多的检测数目
     :return:
     """
@@ -33,7 +34,7 @@ def parse_yolov3_output(yolo_outputs, image_shape, max_boxes=20):
     box_scores = tf.concat(box_scores, axis=0)
 
     # 只留下高过标准的结果
-    mask = box_scores >= cfg.score_threshold
+    mask = box_scores >= score_threshold
     max_boxes_tensor = tf.constant(max_boxes, dtype=tf.int32)
 
     boxes_ = []
