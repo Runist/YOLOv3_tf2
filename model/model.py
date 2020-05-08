@@ -56,7 +56,7 @@ def yolo_body(pretrain_related=None):
     """
     height, width = cfg.input_shape
     input_image = Input(shape=(height, width, 3), dtype='float32', name="input_1")  # [b, 416, 416, 3]
-    if cfg.pretrain and not cfg.predict:
+    if cfg.pretrain:
         input_image, feat_52x52, feat_26x26, feat_13x13 = pretrain_related
     else:
         feat_52x52, feat_26x26, feat_13x13 = darknet53(input_image)
