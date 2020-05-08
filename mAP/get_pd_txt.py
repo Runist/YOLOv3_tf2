@@ -13,6 +13,7 @@ class YOLOmAP(Yolov3Predict):
     def __init__(self, model_path):
         super().__init__(model_path)
         self.score = 0.05
+        self.load_model()
 
     def detect_image(self, image_path, image_id):
         f = open("./input/detection-results/" + image_id + ".txt", "w")

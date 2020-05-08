@@ -31,6 +31,16 @@ class Yolov3Predict(object):
         self.model_path = model_path
         self.score = cfg.score_threshold
 
+    def load_model(self):
+        """
+        加载模型
+        :return:
+        """
+        model = yolo_body()
+        print("loading weights...")
+        model.load_weights(self.model_path)
+        self.model = model
+
     def predict(self, image_path):
         """
         读取模型，做出预测，并处理预测结果。将其变成正常图片下的结果，而非416x416的结果
@@ -38,12 +48,8 @@ class Yolov3Predict(object):
         :return:
         """
         image, width, height = self.read_image(image_path)
-        model = yolo_body()
 
-        # print("loading weights...")
-        model.load_weights(self.model_path)
-
-        output = model.predict(image)
+        output = self.model.predict(image)
 
         boxes, scores, classes = parse_yolov3_output(output, (height, width), self.score, max_boxes=20)
         return boxes, scores, classes
@@ -155,5 +161,7 @@ if __name__ == '__main__':
     img_path = "D:/Python_Code/Tensorflow2.0/YOLOv3/VOCdevkit/VOC2012/JPEGImages/2010_000996.jpg"
 
     yolo = Yolov3Predict(cfg.model_path)
+    yolo.load_model()
+
     image = yolo.detect_image(img_path)
     image.show()
