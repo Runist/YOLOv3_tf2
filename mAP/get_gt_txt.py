@@ -4,9 +4,8 @@
 # @Time : 2020/5/8 10:36
 # @Software: PyCharm
 # @Brief: 将真实图片转成mAP的txt检测格式
-
+import os
 import sys
-import xml.etree.ElementTree as ET
 import config.config as cfg
 
 image_infos = open("../config/test.txt").read().strip().split('\n')

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# @File : get_pd_txt.py
+# @File : get_dr_txt.py
 # @Author: Runist
 # @Time : 2020/5/8 14:27
 # @Software: PyCharm
@@ -23,11 +23,11 @@ class YOLOmAP(Yolov3Predict):
 
         for i, c in list(enumerate(out_classes)):
             predicted_class = self.class_names[c]
-            xmin, ymin, xmax, ymax = out_boxes[i]
+            top, left, bottom, right = out_boxes[i]
             score = str(float(out_scores[i]))
 
-            f.write("{} {} {} {} {}\n".format(
-                predicted_class, score[:8], str(int(xmin)), str(int(ymin)), str(int(xmax)), str(int(ymax))))
+            f.write("{} {:.6} {} {} {} {}\n".format(
+                predicted_class, score, str(int(left)), str(int(top)), str(int(right)), str(int(bottom))))
 
 
 if __name__ == '__main__':
