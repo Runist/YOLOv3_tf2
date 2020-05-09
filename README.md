@@ -15,7 +15,7 @@
 - [x] Tensorboard
 - [x] GPU加速
 - [x] GPU分布式训练
-- [ ] mAP的计算
+- [x] mAP的计算
 - [ ] 实时视频检测
 
 ### 一些问题和可能会出现的Bug
