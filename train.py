@@ -211,8 +211,6 @@ def high_level_train(optimizer, loss, train_datasets, valid_datasets, train_step
         model = create_model()
         model.compile(optimizer=optimizer, loss=loss)
 
-    print(len(model.layers))
-
     # initial_epoch用于恢复之前的训练
     model.fit(train_datasets,
               steps_per_epoch=max(1, train_steps),
@@ -225,9 +223,12 @@ def high_level_train(optimizer, loss, train_datasets, valid_datasets, train_step
     model.save_weights(cfg.model_path)
 
     if cfg.fine_tune:
-        for i in range(len(model.layers)):
-            model.layers[i].trainable = True
-        model.compile(optimizer=Adam(learning_rate=cfg.learn_rating / 10), loss=loss)
+        with strategy.scope():
+            print("Unfreeze all of the layers.")
+            for i in range(len(model.layers)):
+                model.layers[i].trainable = True
+
+            model.compile(optimizer=Adam(learning_rate=cfg.learn_rating / 10), loss=loss)
 
         model.fit(train_datasets,
                   steps_per_epoch=max(1, train_steps),
@@ -236,6 +237,8 @@ def high_level_train(optimizer, loss, train_datasets, valid_datasets, train_step
                   epochs=cfg.epochs,
                   initial_epoch=0,
                   callbacks=callbacks)
+
+        model.save_weights(cfg.model_path)
 
 
 if __name__ == '__main__':
