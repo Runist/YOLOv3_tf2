@@ -14,7 +14,9 @@ anchors_path = './config/voc_anchors.txt'
 # 预训练模型的位置
 pretrain_weights_path = r"D:\Python_Code\YOLOv3_tf2\config\convert_yolov3.h5"
 # 是否预训练
-pretrain = False
+pretrain = True
+# 是否微调
+fine_tune = True
 # 训练的方式
 train_mode = "fit"
 
@@ -31,7 +33,7 @@ num_bbox = 3
 # 训练信息
 epochs = 50
 # 学习率
-learn_rating = 1e-3
+learn_rating = 1e-4
 
 # 获得分类名
 class_names = ['aeroplane', 'bicycle', 'bird', 'boat', 'bottle',
