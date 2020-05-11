@@ -235,7 +235,7 @@ def high_level_train(optimizer, loss, train_datasets, valid_datasets, train_step
                   validation_data=valid_datasets,
                   validation_steps=max(1, valid_steps),
                   epochs=cfg.epochs,
-                  initial_epoch=0,
+                  initial_epoch=cfg.epochs + 1,
                   callbacks=callbacks)
 
         model.save_weights(cfg.model_path)
