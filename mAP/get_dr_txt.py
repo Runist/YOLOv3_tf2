@@ -45,7 +45,7 @@ if __name__ == '__main__':
     for image_info in image_infos:
         image_boxes = image_info.split(' ')
         image_path = image_boxes[0]
-        image_id = image_path[-15: -4]
+        image_id = os.path.basename(image_path)[:-4]
 
         # image = Image.open(image_path)
         # 开启后在之后计算mAP可以可视化

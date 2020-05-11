@@ -20,7 +20,7 @@ for image_info in image_infos:
     image_boxes = image_info.split(' ')
     image, boxes = image_boxes[0], image_boxes[1:]
 
-    with open("./input/ground-truth/" + image[-15:-4] + ".txt", "w") as file:
+    with open("./input/ground-truth/" + os.path.basename(image)[:-4] + ".txt", "w") as file:
         for box in boxes:
             xmin, ymin, xmax, ymax, idx = box.split(',')
             name = cfg.class_names[int(idx)]

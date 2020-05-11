@@ -41,31 +41,29 @@ class Yolov3Predict(object):
         model.load_weights(self.model_path)
         self.model = model
 
-    def predict(self, image_path):
+    def predict(self, image):
         """
         读取模型，做出预测，并处理预测结果。将其变成正常图片下的结果，而非416x416的结果
-        :param image_path: 图片路径
+        :param image: 图片
         :return:
         """
-        image, width, height = self.read_image(image_path)
+        height, width = image.height, image.width
 
+        image = self.process_image(image)
         output = self.model.predict(image)
 
         boxes, scores, classes = parse_yolov3_output(output, (height, width), self.score, max_boxes=20)
         return boxes, scores, classes
 
-    def detect_image(self, image_path):
+    def detect_image(self, image):
         """
         检测单张图片
-        :param image_path: 图片路径
+        :param image: 图片
         """
         start = timer()
-        if not os.path.exists(image_path):
-            print("Error,image path is not exists.")
-            exit(-1)
+
         # 读取预测结果
-        out_boxes, out_scores, out_classes = self.predict(image_path)
-        image = Image.open(image_path)
+        out_boxes, out_scores, out_classes = self.predict(image)
 
         print('Found {} boxes for {}'.format(len(out_boxes), 'img'))
         # 设置字体
@@ -127,14 +125,12 @@ class Yolov3Predict(object):
         return image
 
     @staticmethod
-    def read_image(image_path):
+    def process_image(image):
         """
         读取图片，填充图片后归一化
-        :param image_path: 图片路径
+        :param image: 图片路径
         :return: 图片的np数据、宽、高
         """
-        image = Image.open(image_path)
-
         # 获取原图尺寸 和 网络输入尺寸
         image_w, image_h = image.size
         w, h = cfg.input_shape
@@ -152,7 +148,7 @@ class Yolov3Predict(object):
         image_data /= 255.
         image_data = np.expand_dims(image_data, 0)  # 增加batch的维度
 
-        return image_data, image.width, image.height
+        return image_data
 
 
 if __name__ == '__main__':
@@ -163,5 +159,11 @@ if __name__ == '__main__':
     yolo = Yolov3Predict(cfg.model_path)
     yolo.load_model()
 
-    image = yolo.detect_image(img_path)
+    if not os.path.exists(img_path):
+        print("Error,image path is not exists.")
+        exit(-1)
+
+    image = Image.open(img_path)
+
+    image = yolo.detect_image(image)
     image.show()
