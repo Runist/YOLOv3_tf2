@@ -67,3 +67,4 @@ anchor_masks = [[6, 7, 8], [3, 4, 5], [0, 1, 2]]
 log_dir = r".\logs\summary"
 # 模型路径
 model_path = r"D:\Python_Code\YOLOv3_tf2\logs\model\yolo_test.h5"
+best_model = r"D:\Python_Code\YOLOv3_tf2\logs\model\best_model.h5"
