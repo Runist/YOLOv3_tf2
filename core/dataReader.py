@@ -8,7 +8,6 @@
 import tensorflow as tf
 import numpy as np
 import config.config as cfg
-import cv2 as cv
 
 
 class ReadYolo3Data:

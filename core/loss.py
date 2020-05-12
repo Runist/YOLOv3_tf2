@@ -51,7 +51,7 @@ def box_iou(pred_box, true_box):
     return iou
 
 
-def YoloLoss(anchors):
+def YoloLoss(anchors, summary_writer=None, optimizer=None):
     def compute_loss(y_true, y_pred):
         input_shape = cfg.input_shape
         grid_shapes = tf.cast(tf.shape(y_pred)[1:3], tf.float32)
@@ -117,6 +117,14 @@ def YoloLoss(anchors):
         wh_loss = tf.reduce_sum(wh_loss) / tf.cast(batch_size, tf.float32)
         confidence_loss = tf.reduce_sum(confidence_loss) / tf.cast(batch_size, tf.float32)
         class_loss = tf.reduce_sum(class_loss) / tf.cast(batch_size, tf.float32)
+
+        if summary_writer:
+            # 保存到tensorboard里
+            with summary_writer.as_default():
+                tf.summary.scalar('xy_loss', xy_loss, step=optimizer.iterations)
+                tf.summary.scalar('wh_loss', wh_loss, step=optimizer.iterations)
+                tf.summary.scalar('confidence_loss', confidence_loss, step=optimizer.iterations)
+                tf.summary.scalar('class_loss', class_loss, step=optimizer.iterations)
 
         return xy_loss + wh_loss + confidence_loss + class_loss
     return compute_loss

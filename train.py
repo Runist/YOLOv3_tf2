@@ -35,12 +35,11 @@ def main():
     train_steps = len(train) // cfg.batch_size
     valid_steps = len(valid) // cfg.batch_size
 
-    yolo_loss = [YoloLoss(cfg.anchors[mask]) for mask in cfg.anchor_masks]
-
-    # 清除summary目录下原有的东西
-    for f in os.listdir(cfg.log_dir):
-        file = os.path.join(cfg.log_dir, f)
-        shutil.rmtree(file)
+    if os.path.exists(cfg.log_dir):
+        # 清除summary目录下原有的东西
+        for f in os.listdir(cfg.log_dir):
+            file = os.path.join(cfg.log_dir, f)
+            shutil.rmtree(file)
 
     print('Train on {} samples, val on {} samples, with batch size {}.'.format(len(train), len(valid), cfg.batch_size))
     if cfg.train_mode == "eager":
@@ -48,11 +47,19 @@ def main():
         # PolynomialDecay参数：cfg.learn_rating 经过 cfg.epochs 衰减到 cfg.learn_rating/10
         # 1、lr_fn是类似是一个函数，每次需要它来计算当前学习率都会调用它
         # 2、它具有一个内部计数器，每次调用apply_gradients，就会+1
+        yolo_loss = [YoloLoss(cfg.anchors[mask]) for mask in cfg.anchor_masks]
         lr_fn = PolynomialDecay(cfg.learn_rating, cfg.epochs, cfg.learn_rating / 10, 2)
         optimizer = Adam(learning_rate=lr_fn)
         low_level_train(optimizer, yolo_loss, train_datasets, valid_datasets, train_steps, valid_steps)
     else:
+        # 创建summary
+        writer = tf.summary.create_file_writer(logdir=cfg.log_dir + '/loss')
+
         optimizer = Adam(learning_rate=cfg.learn_rating)
+        yolo_loss = [YoloLoss(cfg.anchors[mask],
+                              summary_writer=writer,
+                              optimizer=optimizer) for mask in cfg.anchor_masks]
+
         high_level_train(optimizer, yolo_loss, train_datasets, valid_datasets, train_steps, valid_steps)
 
 
@@ -234,7 +241,7 @@ def high_level_train(optimizer, loss, train_datasets, valid_datasets, train_step
                   steps_per_epoch=max(1, train_steps),
                   validation_data=valid_datasets,
                   validation_steps=max(1, valid_steps),
-                  epochs=cfg.epochs,
+                  epochs=cfg.epochs*2,
                   initial_epoch=cfg.epochs + 1,
                   callbacks=callbacks)
 
