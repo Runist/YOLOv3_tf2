@@ -121,12 +121,11 @@ class ReadYolo3Data:
 
         return image, box_data
 
-    def _get_random_data(self, image, bbox, max_boxes=20):
+    def _get_random_data(self, image, bbox):
         """
         数据增强（改变长宽比例、大小、亮度、对比度、颜色饱和度）
         :param image: 图片
         :param bbox: 实际框坐标
-        :param max_boxes: 最大预测框数目
         :return: image, bbox_data
         """
         def rand(small=0., big=1.):
@@ -193,7 +192,7 @@ class ReadYolo3Data:
         image = tf.clip_by_value(image, clip_value_min=0.0, clip_value_max=1.0)
 
         # boxes的位置也需要修改一下
-        box_data = np.zeros((max_boxes, 5))
+        box_data = np.zeros((self.max_boxes, 5))
         if len(bbox) > 0:
 
             dx = (input_width - new_width) // 2

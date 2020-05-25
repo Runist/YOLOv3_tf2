@@ -25,7 +25,6 @@ parser.add_argument('--set-class-iou', nargs='+', type=str, help="为某个特�
 args = parser.parse_args()
 
 
-
 def error(msg):
     """
     输出错误信息，退出程序

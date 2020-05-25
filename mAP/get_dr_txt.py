@@ -5,6 +5,7 @@
 # @Software: PyCharm
 # @Brief: 获取预测框的数据，并转mAP的txt检测格式
 from predict.predict import Yolov3Predict
+from PIL import Image
 import config.config as cfg
 import os
 
@@ -15,11 +16,11 @@ class YOLOmAP(Yolov3Predict):
         self.score = 0.05
         self.load_model()
 
-    def detect_image(self, image_path, image_id):
+    def detect_image(self, image, image_id):
         f = open("./input/detection-results/" + image_id + ".txt", "w")
 
         # 读取预测结果
-        out_boxes, out_scores, out_classes = self.predict(image_path)
+        out_boxes, out_scores, out_classes = self.predict(image)
 
         for i, c in list(enumerate(out_classes)):
             predicted_class = self.class_names[c]
@@ -31,7 +32,7 @@ class YOLOmAP(Yolov3Predict):
 
 
 if __name__ == '__main__':
-    yolo = YOLOmAP(cfg.model_path)
+    yolo = YOLOmAP(cfg.best_model)
 
     image_infos = open("../config/test.txt").read().strip().split('\n')
 
@@ -47,10 +48,11 @@ if __name__ == '__main__':
         image_path = image_boxes[0]
         image_id = os.path.basename(image_path)[:-4]
 
+        image = Image.open(image_path)
         # image = Image.open(image_path)
         # 开启后在之后计算mAP可以可视化
         # image.save("./input/images-optional/"+image_id+".jpg")
-        yolo.detect_image(image_path, image_id)
+        yolo.detect_image(image, image_id)
         print(image_id, " done!")
 
     print("Conversion completed!")

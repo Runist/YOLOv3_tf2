@@ -93,6 +93,11 @@ def yolo_body(pretrain_related=None):
 
 
 def yolo_feat_reshape(feat):
+    """
+    处理一下y_pred的数据，reshape，从b, 13, 13, 75 -> b, 13, 13, 3, 25
+    :param feat:
+    :return:
+    """
     grid_size = tf.shape(feat)[1]
     reshape_feat = tf.reshape(feat, [-1, grid_size, grid_size, cfg.num_bbox, cfg.num_classes + 5])
 
@@ -101,7 +106,6 @@ def yolo_feat_reshape(feat):
 
 def yolo_head(y_pred, anchors, calc_loss=False):
     """
-    处理一下y_pred的数据，reshape，从b, 13, 13, 75 -> b, 13, 13, 3, 25
     另外，取名为head是有意义的。因为目标检测大多数分为 - Backbone - Detection head两个部分
     :param y_pred: 预测数据
     :param anchors: 其中一种大小的先验框（总共三种）

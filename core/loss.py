@@ -91,7 +91,6 @@ def YoloLoss(anchors, summary_writer=None, optimizer=None):
             best_iou = tf.reduce_max(iou, axis=-1)
             # 如果一张图片的最大iou 都小于阈值 认为这张图片没有目标
             # 则被认为是这幅图的负样本
-
             ignore_mask = ignore_mask.write(b, tf.cast(best_iou < cfg.ignore_thresh, tf.float32))
             return b + 1, ignore_mask
 
