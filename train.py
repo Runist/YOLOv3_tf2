@@ -41,6 +41,10 @@ def main():
             file = os.path.join(cfg.log_dir, f)
             shutil.rmtree(file)
 
+    # 建立模型保存目录
+    if not os.path.exists(os.path.split(cfg.model_path)[0]):
+        os.mkdir(os.path.split(cfg.model_path)[0])
+
     print('Train on {} samples, val on {} samples, with batch size {}.'.format(len(train), len(valid), cfg.batch_size))
     if cfg.train_mode == "eager":
         # 定义优化器和学习率衰减速率
