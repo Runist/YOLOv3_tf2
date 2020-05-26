@@ -312,10 +312,10 @@ class ReadYolo3Data:
         # 这是GPU读取方式
         # load train dataset
         dataset = tf.data.Dataset.from_tensor_slices(annotation)
-        # map的作用就是根据定义的 函数，对整个数据集都进行这样的操作
-        # 而不用自己写一个for循环，如：可以自己定义一个归一化操作，然后用.map方法都归一化
-        dataset = dataset.map(self.parse, num_parallel_calls=tf.data.experimental.AUTOTUNE)
         if mode == "train":
+            # map的作用就是根据定义的 函数，对整个数据集都进行这样的操作
+            # 而不用自己写一个for循环，如：可以自己定义一个归一化操作，然后用.map方法都归一化
+            dataset = dataset.map(self.parse, num_parallel_calls=tf.data.experimental.AUTOTUNE)
             # 打乱数据，这里的shuffle的值越接近整个数据集的大小，越贴近概率分布
             # 但是电脑往往没有这么大的内存，所以适量就好
             dataset = dataset.repeat().shuffle(buffer_size=cfg.shuffle_size).batch(self.batch_size)
