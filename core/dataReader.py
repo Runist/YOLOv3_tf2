@@ -20,6 +20,7 @@ class ReadYolo3Data:
         self.input_shape = input_shape
         self.batch_size = batch_size
         self.max_boxes = max_boxes
+        self.mode = "train"
 
     def read_data_and_split_data(self):
         with open(self.data_path, "r") as f:
@@ -57,11 +58,10 @@ class ReadYolo3Data:
         # 如果py_function的输出有个[..., ...]那么结果也会是列表，一般单个使用的时候，可以不用加[]
         return image, box_data
 
-    def change_image_bbox(self, annotation_line, random=True):
+    def change_image_bbox(self, annotation_line):
         """
         填充或缩小图片，因为有可能不是刚好416x416形状的，因为图片变了，预测框的坐标也要变
         :param annotation_line: 一行数据
-        :param random: 数据随机是否随机
         :return:
         """
         line = str(annotation_line.numpy(), encoding="utf-8").split()
@@ -70,7 +70,7 @@ class ReadYolo3Data:
 
         image = tf.io.read_file(image_path)
         image = tf.image.decode_jpeg(image, channels=3)
-        if random:
+        if self.mode == 'train':
             return self._get_random_data(image, bbox)
         else:
             return self._get_data(image, bbox)
@@ -309,10 +309,11 @@ class ReadYolo3Data:
         :param mode: 训练集or验证集
         :return: 数据集
         """
+        self.mode = mode
         # 这是GPU读取方式
         # load train dataset
         dataset = tf.data.Dataset.from_tensor_slices(annotation)
-        if mode == "train":
+        if self.mode == "train":
             # map的作用就是根据定义的 函数，对整个数据集都进行这样的操作
             # 而不用自己写一个for循环，如：可以自己定义一个归一化操作，然后用.map方法都归一化
             dataset = dataset.map(self.parse, num_parallel_calls=tf.data.experimental.AUTOTUNE)
@@ -323,6 +324,7 @@ class ReadYolo3Data:
             # prefetch官方的说法是可以在gpu训练模型的同时提前预处理下一批数据
             dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
         else:
+            dataset = dataset.map(self.parse, num_parallel_calls=tf.data.experimental.AUTOTUNE)
             dataset = dataset.repeat().batch(self.batch_size).prefetch(self.batch_size)
 
         return dataset
@@ -330,12 +332,12 @@ class ReadYolo3Data:
 
 if __name__ == '__main__':
     reader = ReadYolo3Data("../config/2012_train.txt", cfg.input_shape, cfg.batch_size)
-    train, valid = reader.read_data_and_split_data()
+    # train, valid = reader.read_data_and_split_data()
     # train_datasets = reader.make_datasets(train)
     # image, bbox = next(iter(train_datasets))
     # print(bbox[2].shape)
 
-    reader.parse(train[3])
+    # reader.parse(train[3])
 
 
 
