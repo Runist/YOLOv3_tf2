@@ -197,7 +197,7 @@ def low_level_train(optimizer, yolo_loss, train_datasets, valid_datasets, train_
 
 def high_level_train(optimizer, loss, train_datasets, valid_datasets, train_steps, valid_steps):
     """
-    使用fit_generator方式训练，可以知道训练完的时间，以及更规范的添加callbacks参数
+    使用fit方式训练，可以知道训练完的时间，以及更规范的添加callbacks参数
     :param optimizer: 优化器
     :param loss: 自定义的loss function
     :param train_datasets: 以tf.data封装好的训练集数据
@@ -210,7 +210,7 @@ def high_level_train(optimizer, loss, train_datasets, valid_datasets, train_step
         ReduceLROnPlateau(verbose=1),
         EarlyStopping(patience=10, verbose=1),
         TensorBoard(log_dir=cfg.log_dir),
-        ModelCheckpoint(cfg.log_dir, save_best_only=True, save_weights_only=True)
+        ModelCheckpoint(cfg.best_model, save_best_only=True, save_weights_only=True)
     ]
 
     strategy = tf.distribute.MirroredStrategy()
