@@ -73,10 +73,7 @@ def darknet_block(inputs, num_filters):
     :return:
     """
     if "add" not in darknet_block.__dict__:
-        if cfg.pretrain:
-            conv_bn_leaky.add = 24
-        else:
-            darknet_block.add = 1
+        darknet_block.add = 1
 
     filter_1, filter_2 = num_filters
     x = conv_bn_leaky(inputs, filter_1, kernel_size=1, strides=(1, 1))
@@ -138,6 +135,7 @@ def darknet53(inputs):
     # x = keras.layers.Flatten()(x)
     # x = keras.layers.Dense(1000)(x)
     # predict = keras.layers.Softmax()(x)
-    # model = keras.Model(inputs=input_image, outputs=predict)
+    # model = tf.keras.Model(inputs=inputs, outputs=[feat13x13, feat26x26, feat52x52])
+    # model.summary()
 
     return feat52x52, feat26x26, feat13x13
