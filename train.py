@@ -67,29 +67,6 @@ def main():
         high_level_train(optimizer, yolo_loss, train_datasets, valid_datasets, train_steps, valid_steps)
 
 
-def create_model():
-    """
-    创建模型，方便MirroredStrategy的操作
-    :return: Model
-    """
-    # 是否预训练
-    if cfg.pretrain:
-        print('Load weights {}.'.format(cfg.pretrain_weights_path))
-        # 定义模型
-        pretrain_model = tf.keras.models.load_model(cfg.pretrain_weights_path, compile=False)
-        pretrain_model.trainable = False
-        input_image = pretrain_model.input
-        feat_52x52, feat_26x26, feat_13x13 = pretrain_model.layers[92].output, \
-                                             pretrain_model.layers[152].output, \
-                                             pretrain_model.layers[184].output
-        model = yolo_body([input_image, feat_52x52, feat_26x26, feat_13x13])
-    else:
-        print("Train all layers.")
-        model = yolo_body()
-
-    return model
-
-
 def low_level_train(optimizer, yolo_loss, train_datasets, valid_datasets, train_steps, valid_steps):
     """
     以底层的方式训练，这种方式更好地观察训练过程，监视变量的变化
@@ -102,7 +79,7 @@ def low_level_train(optimizer, yolo_loss, train_datasets, valid_datasets, train_
     :return: None
     """
     # 创建模型结构
-    model = create_model()
+    model = yolo_body()
 
     # 定义模型评估指标
     train_loss = Mean(name='train_loss')
@@ -219,7 +196,7 @@ def high_level_train(optimizer, loss, train_datasets, valid_datasets, train_step
 
     strategy = tf.distribute.MirroredStrategy()
     with strategy.scope():
-        model = create_model()
+        model = yolo_body()
         model.compile(optimizer=optimizer, loss=loss)
 
     # initial_epoch用于恢复之前的训练

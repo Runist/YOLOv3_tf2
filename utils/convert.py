@@ -44,11 +44,9 @@ def unique_config_sections(config_file):
 
 def main():
     weights_only = False
-    plot_model = True
     config_path = "yolov3.cfg"
     weights_path = "yolov3.weights"
-    output_path = "../config/convert_yolov3.h5"
-    output_root = os.path.splitext(output_path)[0]
+    output_path = cfg.pretrain_weights_path
 
     print('Loading weights.')
     weights_file = open(weights_path, 'rb')
@@ -89,8 +87,8 @@ def main():
 
             padding = 'same' if pad == 1 and stride == 1 else 'valid'
 
-            # Setting weights.
-            # Darknet serializes convolutional weights as:
+            # 设置weights.
+            # Darknet将卷积权重序列化为:
             # [bias/beta, [gamma, mean, variance], conv_weights]
             prev_layer_shape = K.int_shape(prev_layer)
 
@@ -109,9 +107,9 @@ def main():
 
                 bn_weight_list = [
                     bn_weights[0],  # scale gamma
-                    conv_bias,  # shift beta
+                    conv_bias,      # shift beta
                     bn_weights[1],  # running mean
-                    bn_weights[2]  # running var
+                    bn_weights[2]   # running var
                 ]
 
             conv_weights = np.ndarray(
@@ -121,14 +119,14 @@ def main():
 
             count += weights_size
 
-            # DarkNet conv_weights are serialized Caffe-style:
+            # DarkNet conv_weights是Caffe样式的序列化:
             # (out_dim, in_dim, height, width)
-            # We would like to set these to Tensorflow order:
+            # 把他转换成Tensorflow的格式:
             # (height, width, in_dim, out_dim)
             conv_weights = np.transpose(conv_weights, [2, 3, 1, 0])
             conv_weights = [conv_weights] if batch_normalize else [conv_weights, conv_bias]
 
-            # Handle activation.
+            # 判断激活函数是否存在.
             act_fn = None
             if activation == 'leaky':
                 pass  # Add advanced activation later.
@@ -139,6 +137,7 @@ def main():
             if stride > 1:
                 # Darknet uses left and top padding instead of 'same' mode
                 prev_layer = ZeroPadding2D(((1, 0), (1, 0)))(prev_layer)
+
             conv_layer = (Conv2D(
                 filters, (size, size),
                 strides=(stride, stride),
@@ -227,10 +226,6 @@ def main():
 
     if remaining_weights > 0:
         print('Warning: {} unused weights'.format(remaining_weights))
-
-    # if plot_model:
-    #     plot(model, to_file='{}.png'.format(output_root), show_shapes=True)
-    #     print('Saved model plot to {}.png'.format(output_root))
 
 
 if __name__ == '__main__':

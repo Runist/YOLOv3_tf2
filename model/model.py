@@ -49,7 +49,7 @@ def conv_upsample(inputs, filters):
     return x
 
 
-def yolo_body(pretrain_related=None):
+def yolo_body():
     """
     yolov3主体结构 用darknet53做特征提取，输出三个结果做目标框预测
     :return: model
@@ -57,8 +57,16 @@ def yolo_body(pretrain_related=None):
     height, width = cfg.input_shape
     input_image = Input(shape=(height, width, 3), dtype='float32', name="input_1")  # [b, 416, 416, 3]
     if cfg.pretrain:
-        input_image, feat_52x52, feat_26x26, feat_13x13 = pretrain_related
+        print('Load weights {}.'.format(cfg.pretrain_weights_path))
+        # 定义模型
+        pretrain_model = tf.keras.models.load_model(cfg.pretrain_weights_path, compile=False)
+        pretrain_model.trainable = False
+        input_image = pretrain_model.input
+        feat_52x52, feat_26x26, feat_13x13 = pretrain_model.layers[92].output, \
+                                             pretrain_model.layers[152].output, \
+                                             pretrain_model.layers[184].output
     else:
+        print("Train all layers.")
         feat_52x52, feat_26x26, feat_13x13 = darknet53(input_image)
 
     # 13x13预测框计算 5次卷积 + 2次卷积就可以输出结果
@@ -87,7 +95,7 @@ def yolo_body(pretrain_related=None):
     # 实际上13x13的感受野是比较大的，对应的是大的先验框
     # 相应的52x52感受野是比较小的，检测小物体，先验框也比较小
     model = Model(input_image, [output_13x13, output_26x26, output_52x52])
-    # model.summary()
+    model.summary()
 
     return model
 
