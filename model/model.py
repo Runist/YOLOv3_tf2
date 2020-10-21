@@ -58,7 +58,7 @@ def yolo_body():
     input_image = Input(shape=(height, width, 3), dtype='float32', name="input_1")  # [b, 416, 416, 3]
     if cfg.pretrain:
         print('Load weights {}.'.format(cfg.pretrain_weights_path))
-        # 定义模型
+        # 加载模型
         pretrain_model = tf.keras.models.load_model(cfg.pretrain_weights_path, compile=False)
         pretrain_model.trainable = False
         input_image = pretrain_model.input
@@ -95,7 +95,7 @@ def yolo_body():
     # 实际上13x13的感受野是比较大的，对应的是大的先验框
     # 相应的52x52感受野是比较小的，检测小物体，先验框也比较小
     model = Model(input_image, [output_13x13, output_26x26, output_52x52])
-    model.summary()
+    # model.summary()
 
     return model
 

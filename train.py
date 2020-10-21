@@ -13,11 +13,9 @@ from core.loss import YoloLoss
 from model.model import yolo_body
 
 import os
-from tensorflow.keras.layers import Input, Lambda
-from tensorflow.keras.models import Model
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.optimizers.schedules import PolynomialDecay
-from tensorflow.keras.metrics import Mean, CategoricalAccuracy
+from tensorflow.keras.metrics import Mean
 from tensorflow.keras.callbacks import ReduceLROnPlateau, EarlyStopping, TensorBoard, ModelCheckpoint
 
 
