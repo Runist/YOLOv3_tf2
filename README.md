@@ -1,5 +1,7 @@
 # Yolov3
 
+## 已停止更新，请使用[更简洁的版本_Yolov3](https://github.com/Runist/YOLOv3)
+
 ### 原理
 
 ![yolov3.jpg](https://i.loli.net/2020/10/21/8g43mXl1ckaChMu.jpg)
